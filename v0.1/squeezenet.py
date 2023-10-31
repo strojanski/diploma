@@ -56,7 +56,7 @@ def get_test_data(test_dataset, batch_size=32):
 
 
 def get_squeezenet():
-    model = torch.hub.load('pytorch/vision:v0.10.0', 'squeezenet1_1', pretrained=True)
+    model = torch.hub.load('pytorch/vision:v0.10.0', 'squeezenet1_1', weights="SqueezeNet1_1_Weights.DEFAULT")
     return model
 
 
@@ -141,11 +141,15 @@ if __name__ == '__main__':
         torch.save(test_dataset, "data/test_dataset.pt")
     
     if mode == 'train':
+        train_dataset = torch.load("data/train_dataset.pt")
+        
         # Create train data loader
-        train_dataloader = get_train_data(torch.load("data/train_dataset.pt"))
+        train_dataloader = get_train_data(train_dataset)
         
         # data_iter = iter(train_dataloader)
         # sample_img, sample_label = next(data_iter)
+        
+        # print(type(sample_img[0][0]), type(sample_label[0]))
         # plt.imshow(sample_img[0])
         # plt.show()    
         
@@ -156,7 +160,6 @@ if __name__ == '__main__':
 
         # Train model
         model = train_squeezenet(model)
-
 
         torch.save(model, "models/squeezenet.pt")
         
