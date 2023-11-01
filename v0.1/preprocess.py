@@ -2,6 +2,7 @@ import copy
 import numpy as np
 from PIL import Image
 from torchvision import transforms
+import torch
 
 
 def resize_input(input_data: dict, tgt_size=224) -> dict:
@@ -20,17 +21,10 @@ def resize_input(input_data: dict, tgt_size=224) -> dict:
             # Zero pad to make it square
             pad = np.abs(resized_data[key][i].shape[1] - resized_data[key][i].shape[0]) // 2
             resized_data[key][i] = np.pad(resized_data[key][i], ((0, 0), (pad, pad), (0, 0)), 'constant')    
-            # resized_data[key][i] = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(resized_data[key][i])
-            #resized_data[key][i] = cv2.cvtColor(resized_data[key][i], cv2.COLOR_RGB2GRAY)
             
-            preprocess = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-            ])
-            
-            resized_data[key][i] = preprocess(resized_data[key][i])
-            
-            
+            # Normalize
+            resized_data[key][i] = resized_data[key][i].astype(np.float32) / 255
+                        
     return resized_data
 
 

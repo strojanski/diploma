@@ -11,4 +11,4 @@ class EarDataset(Dataset):
         return len(self.data)
     
     def __getitem__(self, index):
-        return self.data[index].to(torch.float32), self.labels[index].to(torch.long)
+        return self.data[index].permute(2,0,1).to(torch.float32), self.labels[index].to(torch.long)

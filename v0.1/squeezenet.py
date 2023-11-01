@@ -24,24 +24,24 @@ def read_raw():
     return ear_imgs
 
 
-def train_test_split(input_data: dict, test_size=0.3) -> (torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor):
+def train_test_split(input_data: dict, test_size=0.3) -> (np.ndarray, np.ndarray, np.ndarray, np.ndarray):
     X_train, X_test = {}, {}
 
     # X data split, y = person
     for person, imgs in input_data.items():
-        X_train[person], X_test[person] = imgs[:7], imgs[7:]
-
-    y_train = np.array([int(person)-1 for person in X_train.keys()])
-    y_test = np.array([int(person)-1 for person in X_test.keys()])
+        X_train[person], X_test[person] = imgs[:8], imgs[8:]
+        
+    y_train = np.array([int(person) for person in X_train.keys()])
+    y_test = np.array([int(person) for person in X_test.keys()])
     X_train = np.array([np.array([np.array(img) for img in person]) for person in X_train.values()])
     X_test = np.array([np.array([np.array(img) for img in person]) for person in X_test.values()])
 
     # Reshape (100, 7) -> (700, 1)
-    y_train = torch.Tensor(np.array([label for label in y_train for _ in range(7)])).long()
-    y_test = torch.Tensor(np.array([label for label in y_train for _ in range(3)])).long()
-    X_train = torch.Tensor(np.array([img for person in X_train for img in person])).float()
-    X_test = torch.Tensor(np.array([img for person in X_test for img in person])).float()
-
+    y_train = np.array([label for label in y_train for _ in range(8)]).astype(np.int64)
+    y_test = np.array([label for label in y_test for _ in range(2)]).astype(np.int64)
+    X_train = np.array([img for person in X_train for img in person]).astype(np.float32)
+    X_test = np.array([img for person in X_test for img in person]).astype(np.float32)        
+        
     return X_train, X_test, y_train, y_test
 
 
@@ -62,10 +62,11 @@ def get_squeezenet():
 
 def train_squeezenet(model):
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=1e-2)
-    # optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-    epochs = 100
+    optimizer = torch.optim.SGD(model.parameters(), lr=1e-4, momentum=0.9)
+    epochs = 250
     model = model.to(device)
+    
+    loss_history = []
     
     for epoch in range(epochs):
         epoch_loss = 0
@@ -83,8 +84,11 @@ def train_squeezenet(model):
             optimizer.step()
             
             epoch_loss += loss.item()
+            loss_history.append(loss.item())
             
         print(f"Epoch: {epoch+1}/{epochs}, Loss: {epoch_loss}")
+    
+    # plt.plot(loss_history)
     
     return model
 
@@ -105,12 +109,13 @@ def test_squeezenet(model):
 
     print(predictions, "\n", ys)
     print(np.array(predictions).shape, np.array(ys).shape)
-    return f1_score(ys, predictions)
+    return accuracy_score(ys, predictions)
 
 
 
 if __name__ == '__main__':
     
+    mode = 'other'
     mode = 'test'
     mode = 'preprocess'
     mode = 'train'
@@ -118,20 +123,16 @@ if __name__ == '__main__':
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
     print(device)
     
+    # Read in input data
+    input_data = read_raw()
     
     if mode == 'preprocess':
-        # Read in input data
-        input_data = read_raw()
         
         # Resize input data
-        input_data = resize_input(input_data, tgt_size=224)
+        input_data = resize_input(input_data, tgt_size=224)       
         
         # Split into train and test
         X_train, X_test, y_train, y_test = train_test_split(input_data)
-    
-        # plt.imshow(X_train[0].permute(1,2,0), cmap='gray')
-        # plt.show()
-        # pass
     
         # Create train data set
         train_dataset = EarDataset(X_train, y_train)
@@ -146,16 +147,10 @@ if __name__ == '__main__':
         # Create train data loader
         train_dataloader = get_train_data(train_dataset)
         
-        # data_iter = iter(train_dataloader)
-        # sample_img, sample_label = next(data_iter)
-        
-        # print(type(sample_img[0][0]), type(sample_label[0]))
-        # plt.imshow(sample_img[0])
-        # plt.show()    
         
         # Get model and modify classifier
         model = get_squeezenet()
-        n_classes = 100 
+        n_classes = 101 
         model.classifier[1] = nn.Conv2d(512, n_classes, kernel_size=(1, 1), stride=(1, 1))
 
         # Train model
@@ -164,21 +159,67 @@ if __name__ == '__main__':
         torch.save(model, "models/squeezenet.pt")
         
     if mode == 'test':
+        test_dataset = torch.load("data/test_dataset.pt")
+        train_dataset = torch.load("data/train_dataset.pt")
+        
+        test_dataloader = get_test_data(test_dataset)
+        train_dataloader = get_train_data(train_dataset)
+
+        print(test_dataset.labels.min(), test_dataset.labels.max())
+        print(train_dataset.labels.min(), train_dataset.labels.max())
+      
+        data_iter = iter(test_dataloader)
+        batch = next(data_iter)
+        test_imgs, test_labels = batch 
+        
+        print(test_labels)
+    
+        model = torch.load("models/squeezenet.pt")        
+        
+        # score = test_squeezenet(model)
+        # print(score)
+        
+        test = test_imgs.to(device)
+        outputs = model(test)
+        print(outputs)
+        
+        for i, output in enumerate(outputs):
+            pred, truth = torch.argmax(output), test_labels[i]
+            fig, ax = plt.subplots(1,2)
+            
+            ax[0].imshow(test_imgs[i].permute(1, 2, 0))
+            ax[0].set_title(f"Truth: {truth}")
+            
+            ax[1].imshow(input_data["{:03d}".format(pred)][0])
+            ax[1].set_title(f"Pred: {pred}")
+
+            plt.show()
+        
+    if mode == 'other':    
+        train_dataset = torch.load("data/train_dataset.pt")
+        test_dataset = torch.load("data/test_dataset.pt")
+        
+        label_range = (train_dataset.labels.min(), train_dataset.labels.max())
+        print(label_range)
         
         test_dataloader = get_test_data(torch.load("data/test_dataset.pt"))
         train_dataloader = get_train_data(torch.load("data/train_dataset.pt"))
-
         
-        # data_iter = iter(test_dataloader)
-        # sample_img, sample_label = next(data_iter)
-        # print(sample_label)
+        # iterator = iter(train_dataloader)
+        # batch = next(iterator)
+        
+        # print(np.array(batch).shape)
+        
+        # imgs, labels = batch
+        # print(imgs.shape, labels)
+        
+        # for i in range(10):
+        #     img, label = imgs[i], labels[i]
+        #     print(label)
+        #     plt.imshow(img.permute(1, 2, 0))
+        #     plt.show()
+    
+        # print(sample_label[0])
         # plt.imshow(sample_img[0].permute(1, 2, 0))
         # plt.show()  
-        
-
-        model = torch.load("models/squeezenet.pt")        
-        
-        score = test_squeezenet(model)
-        print(score)
-        
         
