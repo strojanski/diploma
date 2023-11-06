@@ -25,13 +25,16 @@ def get_model(name="resnet"):
     if name == "squeezenet":
         model = torch.hub.load('pytorch/vision:v0.10.0', 'squeezenet1_1', pretrained=False)
 
+    elif name == "densenet":
+        model = torch.hub.load('pytorch/vision:v0.10.0', 'densenet161', pretrained=False)
+
     return model
 
 
 def train(model):
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=1e-4, momentum=0.9)
-    # optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+    # optimizer = torch.optim.SGD(model.parameters(), lr=1e-4, momentum=0.9)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     epochs = 30
     model = model.to(device)
     
@@ -86,15 +89,15 @@ if __name__ == '__main__':
     
     mode = 'other'
     mode = 'preprocess'
-    mode = 'test'
     mode = 'train'
+    mode = 'test'
     
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
     print(device)
     
     model_name = "squeezenet"
+    model_name = "densenet"
     model_name = "resnet"
-    
     print(model_name)
     
     
@@ -137,6 +140,9 @@ if __name__ == '__main__':
         elif model_name == "resnet":
             num_features = model.fc.in_features
             model.fc = nn.Linear(num_features, n_classes)
+        elif model_name == "densenet":
+            num_features = model.classifier.in_features
+            model.classifier = nn.Linear(num_features, n_classes)
             
         # Train model
         model = train(model)
@@ -157,7 +163,7 @@ if __name__ == '__main__':
         model = torch.load(f"models/{model_name}.pt")        
         
         score = test(model)
-        print(f"Accuracy: {score}%")
+        print(f"Accuracy: {score*100}%")
         
         test = test_imgs.to(device)
         outputs = model(test)

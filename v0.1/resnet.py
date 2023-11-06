@@ -11,40 +11,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import io
 
-from preprocess import resize_input
+from preprocess import resize_input, train_test_split, read_raw
 from ear_dataset import EarDataset
 
 device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
-
-def read_raw():
-    ear_data = os.listdir("./data/AWE")
-
-    ear_imgs = {}
-    for person in ear_data:
-        ear_imgs[person] = [cv2.cvtColor(cv2.imread("./data/AWE/%s/%02d.png" % (person, i)), cv2.COLOR_BGR2RGB) for i in range(1, 11)]
-
-    return ear_imgs
-
-
-def train_test_split(input_data: dict, test_size=0.3) -> (np.ndarray, np.ndarray, np.ndarray, np.ndarray):
-    X_train, X_test = {}, {}
-
-    # X data split, y = person
-    for person, imgs in input_data.items():
-        X_train[person], X_test[person] = imgs[:8], imgs[8:]
-        
-    y_train = np.array([int(person) for person in X_train.keys()])
-    y_test = np.array([int(person) for person in X_test.keys()])
-    X_train = np.array([np.array([np.array(img) for img in person]) for person in X_train.values()])
-    X_test = np.array([np.array([np.array(img) for img in person]) for person in X_test.values()])
-
-    # Reshape (100, 7) -> (700, 1)
-    y_train = np.array([label for label in y_train for _ in range(8)]).astype(np.int64)
-    y_test = np.array([label for label in y_test for _ in range(2)]).astype(np.int64)
-    X_train = np.array([img for person in X_train for img in person]).astype(np.float32)
-    X_test = np.array([img for person in X_test for img in person]).astype(np.float32)        
-        
-    return X_train, X_test, y_train, y_test
 
 
 def get_train_data(train_dataset, batch_size=32):
@@ -57,23 +27,25 @@ def get_test_data(test_dataset, batch_size=32):
     return trainloader
 
 
-def get_squeezenet():
-    model = torch.hub.load('pytorch/vision:v0.10.0', 'squeezenet1_1', weights="SqueezeNet1_1_Weights.DEFAULT")
+def get_resnet():
+    model = torch.hub.load('pytorch/vision:v0.10.0', 'resnet18', pretrained=True)
+    # model = resnet50(weights=ResNet50_Weights.DEFAULT)
+
     return model
 
 
-def train_squeezenet(model, dataloader):
+def train_resnet(model, dataloader):
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=1e-4, momentum=0.9)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
-    epochs = 70
+    epochs = 50
     model = model.to(device)
     
     loss_history = []
     
     for epoch in range(epochs):
         epoch_loss = 0
-        for img_batch, label_batch in train_dataloader:
+        for img_batch, label_batch in dataloader:
             img_batch, label_batch = img_batch.to(device), label_batch.to(device)
             
             optimizer.zero_grad()
@@ -97,14 +69,14 @@ def train_squeezenet(model, dataloader):
     return model
 
 
-def test_squeezenet(model):
+def test_resnet(model, dataloader):
     model.eval()
     
     predictions = []
     ys = []
     model = model.to(device)
     with torch.no_grad():   # Disable gradiant calculation
-        for inputs, labels in test_dataloader:
+        for inputs, labels in dataloader:
             inputs, labels = inputs.to(device), labels.to(device)
             outputs = model(inputs)
             _, preds = torch.max(outputs, dim=1)
@@ -115,10 +87,8 @@ def test_squeezenet(model):
     print(np.array(predictions).shape, np.array(ys).shape)
     return accuracy_score(ys, predictions)
 
-
-
     
-def squeezenet_train():
+def resnet_train():
     
     # Read in input data
     input_data = read_raw()
@@ -129,17 +99,19 @@ def squeezenet_train():
     train_dataloader = get_train_data(train_dataset)   
     
     # Get model and modify classifier
-    model = get_squeezenet()
-    n_classes = 101 
-    model.classifier[1] = nn.Conv2d(512, n_classes, kernel_size=(1, 1), stride=(1, 1))
+    model = get_resnet()
+    num_features = model.fc.in_features
+    num_classes = 101
+
+    model.fc = nn.Linear(num_features, num_classes)
 
     # Train model
-    model = train_squeezenet(model, train_dataloader)
+    model = train_resnet(model, train_dataloader)
 
-    torch.save(model, "models/squeezenet.pt")
+    torch.save(model, "models/resnet.pt")
     
-def squeezenet_test():
 
+def resnet_test():
     
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
     print(device)
@@ -156,10 +128,10 @@ def squeezenet_test():
     batch = next(data_iter)
     test_imgs, test_labels = batch 
     
-    model = torch.load("models/squeezenet.pt")        
+    model = torch.load("models/resnet.pt")        
     
-    score = test_squeezenet(model)
-    print(f"Accuracy: {score}%")
+    score = test_resnet(model, test_dataloader)
+    print(f"Accuracy: {score * 100}%")
     
     test = test_imgs.to(device)
     outputs = model(test)
@@ -176,7 +148,11 @@ def squeezenet_test():
 
         plt.show()
 
-def squeezenet_preprocess():
+
+def resnet_preprocess():
+    
+    input_data = read_raw()
+    
     # Resize input data
     input_data = resize_input(input_data, tgt_size=224)       
     
@@ -202,13 +178,13 @@ if __name__ == '__main__':
     mode = 'test'
     
     if mode == 'preprocess':
-        squeezenet_preprocess()
+        resnet_preprocess()
         
     if mode == 'train':
-        squeezenet_train()
+        resnet_train()
         
     if mode == 'test':
-        squeezenet_test()
+        resnet_test()
         
     if mode == 'other':    
         train_dataset = torch.load("data/train_dataset.pt")
