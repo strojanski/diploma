@@ -10,13 +10,16 @@ def resize_input(input_data: dict, tgt_size=224) -> dict:
         Input data: dictionary of images per person
         Output data: dictionary of images per person, resized to 2 tgt_size x 2 tgt_size
     '''
-    
-    
+
     resized_data = copy.deepcopy(input_data)
     for key in input_data.keys():   # For each person
         for i in range(len(input_data[key])):   # For each image
+            
             # Resize into 224x448
             resized_data[key][i] = np.array(Image.fromarray(resized_data[key][i]).resize((int(.5*tgt_size), tgt_size)))
+            
+            # Convert to grayscale
+            # resized_data[key][i] = np.stack([np.mean(resized_data[key][i], axis=2)] * 3, axis=2)
             
             # Zero pad to make it square
             pad = np.abs(resized_data[key][i].shape[1] - resized_data[key][i].shape[0]) // 2
@@ -24,6 +27,15 @@ def resize_input(input_data: dict, tgt_size=224) -> dict:
             
             # Normalize
             resized_data[key][i] = resized_data[key][i].astype(np.float32) / 255
+                        
+            preprocess = transforms.Compose([
+                transforms.Resize(256),
+                transforms.CenterCrop(224),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ])
+            
+            resized_data[key][i] = preprocess(resized_data[key][i])
                         
     return resized_data
 

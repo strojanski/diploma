@@ -2,16 +2,19 @@ import os
 import cv2 
 import numpy as np
 
-
-def read_raw():
-    ear_data = os.listdir("./data/AWE")
-
-    ear_imgs = {}
-    for person in ear_data:
-        ear_imgs[person] = [cv2.cvtColor(cv2.imread("./data/AWE/%s/%02d.png" % (person, i)), cv2.COLOR_BGR2RGB) for i in range(1, 11)]
+from squeezenet import squeezenet_train, squeezenet_test, squeezenet_preprocess
 
 
-mode = input("Model: ")
-if mode == 'squeezenet' or mode == 1:
+model = input("Model: ")
+mode = int(input("Mode [1: train, 2: test, 3: preprocess]: "))
+
+if model == 'squeezenet' or model == 1:
     # Call squeezenet.py
-    pass
+    if mode == 1:
+        squeezenet_train()
+    
+    elif mode == 2:
+        squeezenet_test()
+        
+    elif mode == 3:
+        squeezenet_preprocess()
