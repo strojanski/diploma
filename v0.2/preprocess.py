@@ -30,6 +30,8 @@ def resize_input(input_data: dict, tgt_size=224) -> dict:
             # Normalize
             resized_data[key][i] = resized_data[key][i].astype(np.float32) / 255
                         
+                        
+            # train - rotation & contrast brightness, saturation hue, shear, randomcrop
             preprocess = transforms.Compose([
                 transforms.Resize(256),
                 transforms.CenterCrop(224),

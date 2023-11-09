@@ -184,7 +184,7 @@ if __name__ == '__main__':
         
         # print(np.array(batch).shape)
         
-        # imgs, labels = batch
+        # imgs, labels = batc
         # print(imgs.shape, labels)
         
         # for i in range(10):
