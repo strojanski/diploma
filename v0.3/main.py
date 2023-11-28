@@ -15,12 +15,12 @@ import warnings
 from ear_dataset import EarDataset
 
 
-def get_train_data(train_dataset, batch_size=32):
+def get_train_data(train_dataset, batch_size=4):
     trainloader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=1)
     return trainloader
 
 
-def get_test_data(test_dataset, batch_size=32):
+def get_test_data(test_dataset, batch_size=4):
     trainloader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=True, num_workers=1)
     return trainloader
 
@@ -37,9 +37,17 @@ def get_model(name="resnet"):
     elif name == "resnext":
         model = models.resnext50_32x4d()
         
-    inception = models.inception_v3()
-    googlenet = models.googlenet()
-    alexnet = models.alexnet()
+    elif name == "inception":
+        models.inception_v3()
+        
+    elif name == "alexnet":
+        model = models.alexnet()
+        
+    elif name == "wideresnet":
+        model = models.wide_resnet101_2()
+    
+    elif name == "googlenet":
+        model = models.googlenet(pretrained=True)
 
 
     return model
@@ -52,7 +60,7 @@ def train(model):
     # optimizer = torch.optim.SGD(model.parameters(), lr=1e-4, momentum=0.9)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.9, verbose=True)
-    epochs = 40
+    epochs = 50
     model = model.to(device)
     
     loss_history = []
@@ -66,7 +74,11 @@ def train(model):
             optimizer.zero_grad()
             
             # Forward pass
-            output = model(img_batch)
+            output = None
+            if model_name == "googlenet":
+                output = model(img_batch)
+            else:
+                output = model(img_batch)
             loss = criterion(output, label_batch)
             
             # Backward pass
@@ -90,6 +102,12 @@ def train(model):
     
     return model
 
+def calculate_metrics(predictions, ys, label):
+    TP = np.sum((np.array(ys) == label) & (np.array(predictions) == label))
+    TN = np.sum((np.array(ys) != label) & (np.array(predictions) != label))
+    FP = np.sum((np.array(ys) != label) & (np.array(predictions) == label))
+    FN = np.sum((np.array(ys) == label) & (np.array(predictions) != label))
+    return TP, TN, FP, FN
 
 def test(model):
     model.eval()
@@ -101,11 +119,22 @@ def test(model):
         for inputs, labels in test_dataloader:
             inputs, labels = inputs.to(device), labels.to(device)
             outputs = model(inputs)
-            preds = torch.argmax(outputs, dim=1)        # Argmax bc onehot encoded
+            preds = torch.argmax(outputs, dim=1)   
             ys.extend(labels.tolist())
             predictions.extend(preds.cpu().tolist())
 
     print(np.array(predictions).shape, np.array(ys).shape)
+    
+    acc = 0
+    for label in set(ys):
+        TP, TN, FP, FN = calculate_metrics(predictions, ys, label)
+        print(f"Class {label}: TP={TP}, TN={TN}, FP={FP}, FN={FN}")
+        acc += (TP + TN) / (TP + FP + TN + FN)
+        
+        
+    print("Accuracy score: ",  acc/len(set(ys)))
+        #print(f"Label: {label}, Accuracy: {, )}")
+    
     return accuracy_score(ys, predictions)
 
 def get_mean_std(dataset):
@@ -134,6 +163,7 @@ if __name__ == '__main__':
     mode = 'train'
     mode = 'test'
     
+    
     # if mode == "preprocess" or mode == "other":
     from preprocess import resize_input, train_test_split, read_raw
         
@@ -143,13 +173,13 @@ if __name__ == '__main__':
     
     model_name = "squeezenet"
     model_name = "densenet"
-    model_name = "resnet"
-    model_name = "alexnet"
     model_name = "vgg"
+    model_name = "resnet"
     model_name = "inception"
-    model_name = "googlenet"
+    model_name = "alexnet"
     model_name = "wideresnet"
     model_name = "resnext"
+    model_name = "googlenet"
     
     
     print(model_name)
@@ -194,6 +224,8 @@ if __name__ == '__main__':
         train_dataloader = get_train_data(train_dataset)   
         
         m = "new"
+        m = "old"
+        
         model = None
         if m == "new":
             # Get model and modify classifier
@@ -208,12 +240,15 @@ if __name__ == '__main__':
             # Change structure of classifier
             if model_name == "squeezenet":
                 model.classifier[1] = nn.Conv2d(512, n_classes, kernel_size=(1, 1), stride=(1, 1))
-            elif model_name == "resnet":
+            elif model_name == "resnet" or model_name == "inception" or model_name == "resnext" or model_name == "wideresnet" or model_name == "googlenet":
                 num_features = model.fc.in_features
                 model.fc = nn.Linear(num_features, n_classes)
             elif model_name == "densenet":
                 num_features = model.classifier.in_features
                 model.classifier = nn.Linear(num_features, n_classes)
+            elif model_name == "alexnet":
+                num_features = model.classifier[6].in_features
+                model.classifier[6] = nn.Linear(num_features, n_classes)
         else:
             model = torch.load(f"models/{model_name}.pt")
             model.train()
@@ -222,7 +257,7 @@ if __name__ == '__main__':
         # Train model
         model = train(model)
 
-        torch.save(model, f"models/{model_name}_.pt")
+        torch.save(model, f"models/{model_name}.pt")
         
         
         
@@ -235,7 +270,7 @@ if __name__ == '__main__':
 
         test_imgs, test_labels = next(iter(test_dataloader))        
         
-        model = torch.load(f"models/{model_name}_.pt")        
+        model = torch.load(f"models/{model_name}.pt")        
         
         score = test(model)
         print(f"Accuracy: {score*100}%")
