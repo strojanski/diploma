@@ -22,14 +22,14 @@ parser.add_argument(
 )
 
 
-def get_train_data(train_dataset, batch_size=4):
+def get_train_data(train_dataset, batch_size=16):
     trainloader = torch.utils.data.DataLoader(
         train_dataset, batch_size=batch_size, shuffle=True, num_workers=1
     )
     return trainloader
 
 
-def get_test_data(test_dataset, batch_size=4):
+def get_test_data(test_dataset, batch_size=16):
     trainloader = torch.utils.data.DataLoader(
         test_dataset, batch_size=batch_size, shuffle=True, num_workers=1
     )

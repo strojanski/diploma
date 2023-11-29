@@ -28,13 +28,13 @@ def resize_input(input_data: np.ndarray, tgt_size=224, mode="train") -> dict:
             # transforms.ElasticTransform(),
             # transforms.RandomResizedCrop(size=(224, 224), antialias=True),
             transforms.RandomHorizontalFlip(p=0.3),
-            transforms.RandomRotation(degrees=25),
+            # transforms.RandomRotation(degrees=25),
             # transforms.RandomPerspective(distortion_scale=.15),
             # transforms.RandomAdjustSharpness(sharpness_factor=1.5, p=0.3),
             # transforms.GaussianBlur(kernel_size=3),
-            transforms.ColorJitter(
-                brightness=0.1, contrast=0.1, saturation=0.1, hue=0.01
-            ),
+            # transforms.ColorJitter(
+            #     brightness=0.1, contrast=0.1, saturation=0.1, hue=0.01
+            # ),
             transforms.ConvertImageDtype(torch.float32),
             # transforms.Normalize(mean=[0.4026756, 0.40258485, 0.40231562], std=[0.26870993, 0.268518, 0.2680013]),
             transforms.Resize([224, 112]),
