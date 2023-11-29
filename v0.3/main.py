@@ -6,7 +6,7 @@ from torch.nn import Softmax
 import torchvision.models as models
 from torchvision import datasets, transforms as T
 
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, precision_score
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
@@ -58,9 +58,9 @@ def train(model):
     
     criterion = nn.CrossEntropyLoss()
     # optimizer = torch.optim.SGD(model.parameters(), lr=1e-4, momentum=0.9)
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.9, verbose=True)
-    epochs = 50
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5, verbose=True)
+    epochs = 100
     model = model.to(device)
     
     loss_history = []
@@ -126,14 +126,19 @@ def test(model):
     print(np.array(predictions).shape, np.array(ys).shape)
     
     acc = 0
+    recall = 0
     for label in set(ys):
         TP, TN, FP, FN = calculate_metrics(predictions, ys, label)
         print(f"Class {label}: TP={TP}, TN={TN}, FP={FP}, FN={FN}")
         acc += (TP + TN) / (TP + FP + TN + FN)
+        recall += TP / (TP + FN)
         
-        
+    recall /= len(set(ys))
+    print("Recall: ", recall)
     print("Accuracy score: ",  acc/len(set(ys)))
         #print(f"Label: {label}, Accuracy: {, )}")
+    print("Precision score: ", precision_score(ys, predictions, average=None))
+    # print("Precision score: ", precision_score(ys, predictions, average="micro"))
     
     return accuracy_score(ys, predictions)
 
@@ -160,8 +165,8 @@ if __name__ == '__main__':
     
     mode = 'other'
     mode = 'preprocess'
-    mode = 'train'
     mode = 'test'
+    mode = 'train'
     
     
     # if mode == "preprocess" or mode == "other":
