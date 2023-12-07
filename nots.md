@@ -1,0 +1,2 @@
+- pad with edge color
+- when resizing keep the ratio

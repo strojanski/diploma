@@ -13,7 +13,7 @@ from torchvision.transforms import v2 as transforms
 torchvision.disable_beta_transforms_warning()
 
 
-def resize_input(input_data: np.ndarray, tgt_size=224, mode="train") -> dict:
+def resize_input(input_data: np.ndarray, tgt_size=64, mode="train") -> dict:
     """
     Input data: arary of images
     Output data: array of images, resized to 2 tgt_size x 2 tgt_size
@@ -23,7 +23,7 @@ def resize_input(input_data: np.ndarray, tgt_size=224, mode="train") -> dict:
     # train - rotation & contrast brightness, saturation hue, shear, randomcrop
     preprocess = transforms.Compose(
         [
-            transforms.Resize(224),
+            transforms.Resize(tgt_size, interpolation=Image.BICUBIC),
             # transforms.RandomShortestSize(200),
             # transforms.ElasticTransform(),
             # transforms.RandomResizedCrop(size=(224, 224), antialias=True),
@@ -37,21 +37,17 @@ def resize_input(input_data: np.ndarray, tgt_size=224, mode="train") -> dict:
             # ),
             transforms.ConvertImageDtype(torch.float32),
             # transforms.Normalize(mean=[0.4026756, 0.40258485, 0.40231562], std=[0.26870993, 0.268518, 0.2680013]),
-            transforms.Resize([224, 112]),
-            transforms.Pad([56, 0]),
+            transforms.Resize([tgt_size, tgt_size//2], interpolation=Image.BICUBIC),
+            transforms.Pad([tgt_size//4, 0]),
         ]
     )
 
     if mode == "test":
         preprocess = transforms.Compose(
             [
-                # transforms.Resize(224),
-                # transforms.CenterCrop(224),
-                # transforms.ToTensor(),
-                # transforms.Normalize(mean=[0.4026756, 0.40258485, 0.40231562], std=[0.26870993, 0.268518, 0.2680013]),
                 transforms.ConvertImageDtype(torch.float32),
-                transforms.Resize([224, 112]),
-                transforms.Pad([56, 0]),
+                transforms.Resize([tgt_size, tgt_size//2], interpolation=Image.BICUBIC),
+                transforms.Pad([tgt_size//4, 0]),
             ]
         )
 
@@ -61,7 +57,6 @@ def resize_input(input_data: np.ndarray, tgt_size=224, mode="train") -> dict:
         img = img / 255.0  # Normalize the image
         img = tensor(img)
 
-        # img = tensor(img)
         img = preprocess(img)
 
         input_data[i] = img
@@ -77,11 +72,10 @@ def train_test_split(
 
     # X data split, y = person
     for person, imgs in input_data.items():
-        # np.random.shuffle(imgs)
-        X_train.extend(imgs[:8])
-        X_test.extend(imgs[8:])
-        y_train.extend([int(person)] * len(imgs[:8]))
-        y_test.extend([int(person)] * len(imgs[8:]))
+        X_train.extend(imgs[:-2])
+        X_test.extend(imgs[-2:])
+        y_train.extend([int(person)] * len(imgs[:-2]))
+        y_test.extend([int(person)] * len(imgs[-2:]))
 
     y_train = np.array(list(y_train)) - 1
     y_test = np.array(list(y_test)) - 1
@@ -90,18 +84,26 @@ def train_test_split(
 
 
 def read_raw():
-    ear_data = os.listdir("./data/AWE")
+    ear_data = os.listdir("./data/UERC")
 
     ear_imgs = {}
-    for person in ear_data:
-        imgs = os.listdir("./data/AWE/%s" % person)
+    n_imgs = 0
+    for c, person in enumerate(ear_data):
+        imgs = os.listdir("./data/UERC/%s" % person)
+        
         try:
             ear_imgs[person] = [
                 cv2.cvtColor(
-                    cv2.imread(f"./data/AWE/{person}/{img}"), cv2.COLOR_BGR2RGB
+                    cv2.imread(f"./data/UERC/{person}/{img}"), cv2.COLOR_BGR2RGB
                 )
                 for img in imgs
             ]
+            n_imgs += len(ear_imgs[person])
+            
+            if c % 10 == 0:
+                print(c, n_imgs)
+                
+                
         except Exception as e:
             print(e)
     return ear_imgs

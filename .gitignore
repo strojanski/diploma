@@ -3,6 +3,15 @@ v0.1/data/*
 v0.1/models/*
 v0.2/data/*
 v0.2/models/*
-v0.3/data/*
-v0.3/models/*
+v0.3 - baseline/data/*
+v0.3 - baseline/models/*
+v0.4/data/*
+v0.4/models/*
 *.pyc
+*.pt
+*.pth
+*.npy
+*.log
+*.png
+*.jpg
+*.txt
