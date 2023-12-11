@@ -8,7 +8,7 @@ class TripletLoss(nn.Module):
         self.margin = margin
 
     def forward(self, anchor, positive, negative):
-        distance_positive = torch.functional.F.cosine_similarity(anchor - positive, dim=1)
-        distance_negative = torch.functional.F.cosine_similarity(anchor - negative, dim=1)
+        distance_positive = torch.functional.F.cosine_similarity(anchor, positive, dim=1)
+        distance_negative = torch.functional.F.cosine_similarity(anchor, negative, dim=1)
         loss = torch.relu(distance_positive - distance_negative + self.margin)
         return torch.mean(loss)

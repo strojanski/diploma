@@ -50,3 +50,11 @@ class EarTriplet(Dataset):
     
     def get_data(self, index):
         return self.anchor_data[index], self.anchor_labels[index], self.positive_data[index], self.positive_labels[index], self.negative_data[index], self.negative_labels[index]
+
+    def labels_to_long(self):
+        self.anchor_labels = self.anchor_labels.astype(np.int64)
+        self.positive_labels = self.positive_labels.astype(np.int64)
+        self.negative_labels = self.negative_labels.astype(np.int64)
+
+    def get_n_classes(self):
+        return len(set(self.anchor_labels))

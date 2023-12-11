@@ -59,7 +59,7 @@ def train(model):
 
     criterion = TripletLoss()
     # optimizer = torch.optim.SGD(model.parameters(), lr=1e-4, momentum=0.9)
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-6)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     scheduler = torch.optim.lr_scheduler.StepLR(
         optimizer, step_size=50, gamma=0.1, verbose=True
     )
@@ -71,14 +71,25 @@ def train(model):
     for epoch in range(epochs):
 
         epoch_loss = 0
-        for img_batch, label_batch in train_dataloader:
-            img_batch, label_batch = img_batch.to(device), label_batch.to(device)
+        for batch in train_dataloader:
+            
+            data, _ = batch
+            anchor, positive, negative = data
+            anchor_img = anchor
+            positive_img = positive
+            negative_img = negative
+
+            anchor_img = anchor_img.to(device)
+            positive_img = positive_img.to(device)
+            negative_img = negative_img.to(device)
+            
+            anchor_emb = model(anchor_img)
+            positive_emb = model(positive_img)
+            negative_emb = model(negative_img)
+            
+            loss_ = criterion.forward(anchor_emb, positive_emb, negative_emb)          
 
             optimizer.zero_grad()
-
-            # Forward pass
-            output = model(img_batch)
-            loss_ = criterion(output, label_batch)
 
             # Backward pass
             loss_.backward()
@@ -272,7 +283,7 @@ if __name__ == "__main__":
         torch.save(test_dataset, f"data/test_dataset_{id}.pt")
 
     if mode == "train":
-        train_dataset = torch.load(f"data/train_dataset_64_all.pt")
+        train_dataset = torch.load(f"data/train_dataset_{id}.pt")
         train_dataset.labels_to_long()
 
         # Create train data loader
@@ -284,18 +295,18 @@ if __name__ == "__main__":
         model = None
         if m == "new":
             # Get model and modify classifier
-            model = get_model(f"{model_name}_{id}")
+            model = get_model(f"{model_name}_{id}_{iter_}")
             # model.fc = nn.Identity()
 
             model = list(model.children())[:-1]
 
             print(
-                f"{len(set(train_dataset.labels)), min(train_dataset.labels), max(train_dataset.labels)}"
+                f"{len(set(train_dataset.anchor_labels)), min(train_dataset.anchor_labels), max(train_dataset.anchor_labels)}"
             )
 
             n_classes = train_dataset.get_n_classes()
             print(f"Number of classes: {n_classes}")
-            print(f"Number of images: {len(train_dataset.data)}")
+            print(f"Number of images: {len(train_dataset)}")
 
             # Change structure of classifier
             if model_name == "squeezenet":
@@ -319,7 +330,7 @@ if __name__ == "__main__":
                 model.classifier[6] = nn.Linear(num_features, n_classes)
         else:
             # model = torch.load(f"models/{model_name}_{id}.pt")
-            model = torch.load(f"models/{model_name}_{id}_final_11.pt")
+            model = torch.load(f"models/{model_name}_{id}_{iter_}.pt")
             model.train()
 
         # Train model
