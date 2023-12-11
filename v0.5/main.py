@@ -14,7 +14,8 @@ from torchvision import datasets
 from torchvision import transforms
 from torchvision import transforms as T
 
-from ear_dataset import EarDataset
+from ear_dataset import EarDataset, EarTriplet
+from triplet import TripletLoss
 
 parser = argparse.ArgumentParser(description="Person recognition on ear dataset.")
 parser.add_argument(
@@ -49,42 +50,14 @@ def get_test_data(test_dataset, batch_size=16):
 
 
 def get_model(name="resnet"):
-    model = torch.hub.load(
-        "pytorch/vision:v0.10.0", "resnet50", pretrained=True
-    )  # test 50
-
-    if name == "squeezenet":
-        model = torch.hub.load(
-            "pytorch/vision:v0.10.0", "squeezenet1_1", pretrained=False
-        )
-
-    elif name == "densenet":
-        model = torch.hub.load(
-            "pytorch/vision:v0.10.0", "densenet161", pretrained=False
-        )
-
-    elif name == "resnext":
-        model = models.resnext50_32x4d()
-
-    elif name == "inception":
-        models.inception_v3()
-
-    elif name == "alexnet":
-        model = models.alexnet()
-
-    elif name == "wideresnet":
-        model = models.wide_resnet101_2()
-
-    elif name == "googlenet":
-        model = models.googlenet(pretrained=True)
-
+    model = models.googlenet(pretrained=True)
     return model
 
 
 def train(model):
     torchvision.disable_beta_transforms_warning()
 
-    criterion = nn.CrossEntropyLoss()
+    criterion = TripletLoss()
     # optimizer = torch.optim.SGD(model.parameters(), lr=1e-4, momentum=0.9)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-6)
     scheduler = torch.optim.lr_scheduler.StepLR(
@@ -187,6 +160,54 @@ def get_mean_std(dataset):
     return means, stds
 
 
+def split_triplets(X, y):
+    # Constraint: anchor and positive must be the same person
+    X, y = np.array(X), np.array(y)
+    print("Classes: ", len(np.unique(y)))
+
+    label_to_indices = {label: np.where(y == label)[0] for label in np.unique(y)}
+    
+    for key in label_to_indices.keys():
+        np.random.shuffle(label_to_indices[key])
+
+    an, pos, neg = [], [], []
+
+    negs = np.roll(np.array(list(label_to_indices.keys())), shift=1)
+    print(negs, "\n")
+
+    for i, label in enumerate(label_to_indices.keys()):
+        subarray_size = len(label_to_indices[label]) // 3 + 1
+        print(subarray_size)
+
+        # anchor and positive have label = label and negative is random
+        an.extend(label_to_indices[label][:subarray_size])
+        pos.extend(label_to_indices[label][subarray_size:2 * subarray_size])
+        neg.extend(label_to_indices[negs[i]][:subarray_size])
+
+        # Split the shuffled indices into three arrays with the desired constraints
+        # array1_indices = np.concatenate([indices[:subarray_size] for indices in label_to_indices.values()])
+        # array2_indices = np.concatenate([indices[subarray_size:2 * subarray_size] for indices in label_to_indices.values()])
+        # array3_indices = np.concatenate([indices[2 * subarray_size:] for indices in label_to_indices.values()])
+        
+        # Shuffle the resulting indices to mix labels
+        # np.random.shuffle(array1_indices)
+        # np.random.shuffle(array2_indices)
+        # np.random.shuffle(array3_indices)
+
+    print(an, pos, neg)
+
+    # Use the resulting arrays of indices to get the split arrays
+    anchor_data, anchor_labels = X[an], y[an]
+    positive_data, positive_labels = X[pos], y[pos]
+    negative_data, negative_labels = X[neg], y[neg]
+        
+    print(anchor_data.shape, positive_data.shape, negative_data.shape)
+
+            
+    return (anchor_data, anchor_labels), (positive_data, positive_labels), (negative_data, negative_labels)
+
+
+
 if __name__ == "__main__":
     torchvision.disable_beta_transforms_warning()
     warnings.filterwarnings("ignore")
@@ -210,15 +231,7 @@ if __name__ == "__main__":
         else "cpu"
     )
     print(device)
-
-    model_name = "squeezenet"
-    model_name = "densenet"
-    model_name = "vgg"
-    model_name = "resnet"
-    model_name = "inception"
-    model_name = "alexnet"
-    model_name = "wideresnet"
-    model_name = "resnext"
+    
     model_name = "googlenet"
 
     print(model_name)
@@ -237,17 +250,23 @@ if __name__ == "__main__":
         X_train = resize_input(X_train, tgt_size=64, mode="train")
         X_test = resize_input(X_test, tgt_size=64, mode="test")
 
-        fig, ax = plt.subplots(3, 3)
-        for i in range(1, 10):
-            print(X_train[i].shape)
-            img = X_train[i + 10 * i].permute(1, 2, 0)
-            ax[i // 3 - 1][i % 3].imshow(img)
-        plt.show()
-        print(input_data["0001"][0].shape)
+        if False:
+            fig, ax = plt.subplots(3, 3)
+            for i in range(1, 10):
+                print(X_train[i].shape)
+                img = X_train[i + 10 * i].permute(1, 2, 0)
+                ax[i // 3 - 1][i % 3].imshow(img)
+            plt.show()
+            print(input_data["0001"][0].shape)
+
+
+        # Split to anchor, positive and negative
+        train_anchor, train_positive, train_negative = split_triplets(X_train, y_train)
+        test_anchor, test_positive, test_negative = split_triplets(X_test, y_test)
 
         # Create train data set
-        train_dataset = EarDataset(X_train, y_train)
-        test_dataset = EarDataset(X_test, y_test)
+        train_dataset = EarTriplet(train_anchor[0], train_anchor[1], train_positive[0], train_positive[1], train_negative[0], train_negative[1])
+        test_dataset = EarTriplet(test_anchor[0], test_anchor[1], test_positive[0], test_positive[1], test_negative[0], test_negative[1])
 
         torch.save(train_dataset, f"data/train_dataset_{id}.pt")
         torch.save(test_dataset, f"data/test_dataset_{id}.pt")
@@ -266,6 +285,9 @@ if __name__ == "__main__":
         if m == "new":
             # Get model and modify classifier
             model = get_model(f"{model_name}_{id}")
+            # model.fc = nn.Identity()
+
+            model = list(model.children())[:-1]
 
             print(
                 f"{len(set(train_dataset.labels)), min(train_dataset.labels), max(train_dataset.labels)}"
@@ -306,13 +328,25 @@ if __name__ == "__main__":
         torch.save(model, f"models/{model_name}_{id}_final_{iter_}.pt")
 
     if mode == "test":
-        test_dataset = torch.load(f"data/test_dataset_64_all.pt")
-        train_dataset = torch.load(f"data/train_dataset_64_all.pt")
+        test_dataset = torch.load(f"data/test_dataset_{id}.pt")
+        train_dataset = torch.load(f"data/train_dataset_{id}.pt")
+        
+        ad, al, pd, pl, nd, nl = train_dataset.get_data(0)
+        print("Testing...")
+        print(al, pl, nl)      
 
+        print(len(test_dataset), len(train_dataset))
+
+        for i in range(len(test_dataset)):
+            print(test_dataset.anchor_labels[i], test_dataset.positive_labels[i], test_dataset.negative_labels[i])
+        
+        
         test_dataloader = get_test_data(test_dataset, batch_size=batch_size)
         train_dataloader = get_train_data(train_dataset, batch_size=batch_size)
 
         test_imgs, test_labels = next(iter(test_dataloader))
+
+        pass
 
         model = torch.load(f"models/{model_name}.pt")
         model = torch.load(f"models/{model_name}_{id}_180_{iter_}.pt")
