@@ -16,6 +16,7 @@ from torchvision import transforms as T
 
 from ear_dataset import EarDataset, EarTriplet
 from triplet import TripletLoss
+import torch.functional as F
 
 parser = argparse.ArgumentParser(description="Person recognition on ear dataset.")
 parser.add_argument(
@@ -97,7 +98,7 @@ def train(model):
             optimizer.step()
 
             epoch_loss += loss_.item()
-            loss_history.append(loss_.item())
+        loss_history.append(epoch_loss)
 
         if epoch % 10 == 0 and epoch != 0:
             torch.save(model, f"models/{model_name}_{id}_{epoch}_{iter_}.pt")
@@ -129,17 +130,75 @@ def test(model):
 
     predictions = []
     ys = []
+    correct_preds = 0
+    total_samples = 0
+    
     model = model.to(device)
     with torch.no_grad():  # Disable gradiant calculation
-        for inputs, labels in test_dataloader:
-            inputs, labels = inputs.to(device), labels.to(device)
-            outputs = model(inputs)
-            preds = torch.argmax(outputs, dim=1)
-            ys.extend(labels.tolist())
-            predictions.extend(preds.cpu().tolist())
-
-    print(np.array(predictions).shape, np.array(ys).shape)
-
+        epoch_scores = []
+        for batch in test_dataloader:
+            data, labels = batch 
+            # print(labels)   # Array of [bs] labels
+            anchor, positive, negative = data
+            anchor_img = anchor
+            positive_img = positive
+            negative_img = negative
+            
+            anchor_img = anchor_img.to(device)
+            positive_img = positive_img.to(device)
+            negative_img = negative_img.to(device)
+            
+            anchor_emb = model(anchor_img)
+            positive_emb = model(positive_img)
+            negative_emb = model(negative_img)
+            
+            anchor_label, positive_label, negative_label = labels
+            anchor_label = anchor_label.to(device)
+            positive_label = positive_label.to(device)
+            negative_label = negative_label.to(device)
+            
+            embeddings = torch.stack([anchor_emb, positive_emb, negative_emb])      # [3, bs, 1024]
+            labels = torch.stack([anchor_label, positive_label, negative_label])    # [3, bs]
+            # print(labels)
+            
+            sim = []
+            
+            anchor_positive_sim = []  # [64]
+            anchor_negative_sim = []
+            for i in range(len(embeddings[0])):  # For each image in batch
+                # All tensors are 1024 long
+                sim1 = torch.nn.functional.cosine_similarity(anchor_emb[i], positive_emb[i], dim=0)
+                sim2 = torch.nn.functional.cosine_similarity(anchor_emb[i], negative_emb[i], dim=0)
+                
+                anchor_positive_sim.append(sim1)
+                anchor_negative_sim.append(sim2)
+                
+            # print(np.array(anchor_positive_sim).shape, np.array(anchor_negative_sim).shape)
+            sim = torch.stack([torch.Tensor(anchor_positive_sim), torch.Tensor(anchor_negative_sim)])
+            
+            print("Similarity matrix: ", sim)
+            
+            predicted_labels = torch.argmin(sim, dim=0)
+            
+            preds = []
+            for i in range(len(predicted_labels)):
+                if predicted_labels[i] == 0:
+                    preds.append(positive_label[i].cpu())
+                else:
+                    preds.append(negative_label[i].cpu())
+                # preds.append(sim[predicted_labels[i]][i])
+            predictions.extend(np.array(preds))
+            ys.extend(anchor_label.cpu().numpy())
+            
+            for i, pred in enumerate(preds):
+                # print(pred, anchor_label[i])
+                if pred == anchor_label[i]:
+                    correct_preds += 1
+                                
+            total_samples += len(anchor_label)
+    
+    
+    # np.savetxt("score_outputs.txt", epoch_scores)
     acc = 0
     recall = 0
     for label in set(ys):
@@ -298,7 +357,7 @@ if __name__ == "__main__":
             model = get_model(f"{model_name}_{id}_{iter_}")
             # model.fc = nn.Identity()
 
-            model = list(model.children())[:-1]
+            # model = list(model.children())[:-1]
 
             print(
                 f"{len(set(train_dataset.anchor_labels)), min(train_dataset.anchor_labels), max(train_dataset.anchor_labels)}"
@@ -330,7 +389,11 @@ if __name__ == "__main__":
                 model.classifier[6] = nn.Linear(num_features, n_classes)
         else:
             # model = torch.load(f"models/{model_name}_{id}.pt")
-            model = torch.load(f"models/{model_name}_{id}_{iter_}.pt")
+            model = torch.load(f"models/{model_name}_1_80_1.pt")
+            # model.fc = nn.Identity()
+            
+            # model = model.children()[:-1]
+            
             model.train()
 
         # Train model
@@ -342,31 +405,48 @@ if __name__ == "__main__":
         test_dataset = torch.load(f"data/test_dataset_{id}.pt")
         train_dataset = torch.load(f"data/train_dataset_{id}.pt")
         
-        ad, al, pd, pl, nd, nl = train_dataset.get_data(0)
-        print("Testing...")
-        print(al, pl, nl)      
+        # ad, al, pd, pl, nd, nl = train_dataset.get_data(0)
+        # print("Testing...")
+        # print(al, pl, nl)      
 
-        print(len(test_dataset), len(train_dataset))
+        # print(len(test_dataset), len(train_dataset))
 
-        for i in range(len(test_dataset)):
-            print(test_dataset.anchor_labels[i], test_dataset.positive_labels[i], test_dataset.negative_labels[i])
+        # for i in range(len(test_dataset)):
+        #     print(test_dataset.anchor_labels[i], test_dataset.positive_labels[i], test_dataset.negative_labels[i])
         
         
         test_dataloader = get_test_data(test_dataset, batch_size=batch_size)
         train_dataloader = get_train_data(train_dataset, batch_size=batch_size)
 
         test_imgs, test_labels = next(iter(test_dataloader))
+        
+        print(type(test_imgs))
+        print(np.array(test_imgs).shape) 
+        
+        if False:
+            for i in range(10):
+                for j in range(3):
+                    if j == 0:
+                        print(f"Anchor {i} - label {test_labels[j][i]}")
+                    elif j == 1:
+                        print(f"Positive {i} - label {test_labels[j][i]}")  
+                    else:
+                        print(f"Negative {i} - label {test_labels[j][i]}")
+                        
+                    print(test_labels[j].shape)
+                    plt.imshow(test_imgs[j][i].permute(1, 2, 0))
+                    plt.show()
+        # pass
 
-        pass
-
-        model = torch.load(f"models/{model_name}.pt")
-        model = torch.load(f"models/{model_name}_{id}_180_{iter_}.pt")
+        # model = torch.load(f"models/{model_name}.pt")
+        model = torch.load(f"models/{model_name}_{id}_80_{iter_}.pt")
 
         score = test(model)
         print(f"Accuracy: {score*100}%")
 
-        test_ = test_imgs.to(device)
-        outputs = model(test_)
+        test_ = np.array(test_imgs)#.to(device)
+        outputs = model(test_[1].to(device))
+        print(output.shape)
 
         for i, output in enumerate(outputs[:5]):
             # print(output)
