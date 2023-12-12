@@ -451,27 +451,27 @@ if __name__ == "__main__":
         outputs = model(test_[1].to(device))
         print(outputs.shape)
 
-        for i, output in enumerate(outputs[:5]):
-            # print(output)
-            # print(torch.max(output), torch.argmax(output), Softmax(output))
-            print(torch.argmax(torch.nn.functional.softmax(output)))
-            # output = Softmax(output) # Get probabilites
-            pred, truth = torch.argmax(output), test_labels[i]
-            fig, ax = plt.subplots(3, 3)
+        # for i, output in enumerate(outputs[:5]):
+        #     # print(output)
+        #     # print(torch.max(output), torch.argmax(output), Softmax(output))
+        #     print(torch.argmax(torch.nn.functional.softmax(output)))
+        #     # output = Softmax(output) # Get probabilites
+        #     pred, truth = torch.argmax(output), test_labels[i]
+        #     fig, ax = plt.subplots(3, 3)
 
-            ax[0][0].imshow(test_imgs[i].permute(1, 2, 0))
-            ax[0][0].set_title(f"Truth: {truth}")
+        #     ax[0][0].imshow(test_imgs[1][i].permute(1, 2, 0))
+        #     ax[0][0].set_title(f"Truth: {truth}")
 
-            train_data = train_dataset.get_class_data(pred)
+        #     train_data = train_dataset.get_class_data(pred)
 
-            for i in range(1, 9):
-                try:
-                    ax[i // 3][i % 3].imshow(train_data[i].permute(1, 2, 0))
-                    ax[0][2].set_title(f"Pred: {pred}")
-                except IndexError as e:
-                    print(e)
+        #     for i in range(1, 9):
+        #         try:
+        #             ax[i // 3][i % 3].imshow(train_data[i].permute(1, 2, 0))
+        #             ax[0][2].set_title(f"Pred: {pred}")
+        #         except IndexError as e:
+        #             print(e)
 
-            plt.show()
+        #     plt.show()
 
     if mode == "analysis":
         from pytorch_grad_cam import GradCAM, HiResCAM, ScoreCAM, GradCAMPlusPlus, AblationCAM, XGradCAM, EigenCAM, FullGrad
