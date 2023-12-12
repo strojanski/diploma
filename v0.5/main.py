@@ -72,7 +72,11 @@ def train(model):
     for epoch in range(epochs):
 
         epoch_loss = 0
+        batch_count = 1
         for batch in train_dataloader:
+            if batch_count % 100 == 0:
+                print(f"Batch {batch_count}/{len(train_dataloader)}")
+            batch_count += 1
             
             data, _ = batch
             anchor, positive, negative = data
@@ -96,7 +100,7 @@ def train(model):
             loss_.backward()
 
             optimizer.step()
-
+            
             epoch_loss += loss_.item()
         loss_history.append(epoch_loss)
 
@@ -176,7 +180,6 @@ def test(model):
             # print(np.array(anchor_positive_sim).shape, np.array(anchor_negative_sim).shape)
             sim = torch.stack([torch.Tensor(anchor_positive_sim), torch.Tensor(anchor_negative_sim)])
             
-            print("Similarity matrix: ", sim)
             
             predicted_labels = torch.argmin(sim, dim=0)
             
@@ -342,7 +345,7 @@ if __name__ == "__main__":
         torch.save(test_dataset, f"data/test_dataset_{id}.pt")
 
     if mode == "train":
-        train_dataset = torch.load(f"data/train_dataset_{id}.pt")
+        train_dataset = torch.load(f"data/train_dataset_1.pt")
         train_dataset.labels_to_long()
 
         # Create train data loader
@@ -390,7 +393,7 @@ if __name__ == "__main__":
         else:
             # model = torch.load(f"models/{model_name}_{id}.pt")
             model = torch.load(f"models/{model_name}_1_80_1.pt")
-            # model.fc = nn.Identity()
+            model.fc = nn.Identity()
             
             # model = model.children()[:-1]
             
@@ -439,14 +442,14 @@ if __name__ == "__main__":
         # pass
 
         # model = torch.load(f"models/{model_name}.pt")
-        model = torch.load(f"models/{model_name}_{id}_80_{iter_}.pt")
+        model = torch.load(f"models/{model_name}_{id}_10_{iter_}.pt")
 
         score = test(model)
         print(f"Accuracy: {score*100}%")
 
         test_ = np.array(test_imgs)#.to(device)
         outputs = model(test_[1].to(device))
-        print(output.shape)
+        print(outputs.shape)
 
         for i, output in enumerate(outputs[:5]):
             # print(output)
