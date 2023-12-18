@@ -58,7 +58,7 @@ def get_model(name="resnet"):
 def train(model):
     torchvision.disable_beta_transforms_warning()
 
-    criterion = TripletLoss()
+    triplet_loss = torch.nn.TripletMarginLoss()
     # optimizer = torch.optim.SGD(model.parameters(), lr=1e-4, momentum=0.9)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     scheduler = torch.optim.lr_scheduler.StepLR(
@@ -92,7 +92,7 @@ def train(model):
             positive_emb = model(positive_img)
             negative_emb = model(negative_img)
             
-            loss_ = criterion.forward(anchor_emb, positive_emb, negative_emb)          
+            loss_ = triplet_loss(anchor_emb, positive_emb, negative_emb)          
 
             optimizer.zero_grad()
 
@@ -255,6 +255,8 @@ def split_triplets(X, y):
         # anchor and positive have label = label and negative is random
         an.extend(label_to_indices[label][:subarray_size])
         pos.extend(label_to_indices[label][subarray_size:2 * subarray_size])
+        
+        # Negative = random class od vseh ostalih, pomešaj med njimi
         neg.extend(label_to_indices[negs[i]][:subarray_size])
 
         # Split the shuffled indices into three arrays with the desired constraints
