@@ -16,7 +16,7 @@ from torchvision import transforms as T
 
 from ear_dataset import EarDataset, EarTriplet
 from triplet import TripletLoss
-import torch.functional as F
+import torch.nn.functional as F
 
 parser = argparse.ArgumentParser(description="Person recognition on ear dataset.")
 parser.add_argument(
@@ -128,7 +128,7 @@ def calculate_metrics(predictions, ys, label):
     FN = np.sum((np.array(ys) == label) & (np.array(predictions) != label))
     return TP, TN, FP, FN
 
-
+"""
 def test(model):
     model.eval()
     predictions = []
@@ -241,6 +241,41 @@ def test(model):
     print("Precision score: ", precision_score(ys, predictions, average="micro"))
 
     return accuracy_score(ys, predictions)
+"""
+
+def test(model):  # Assuming margin is 1.0, adjust as needed
+    model.eval()
+    correct_preds = 0
+    total_triplets = 0
+    total_loss = 0
+    crit = torch.nn.TripletMarginLoss()
+    model = model.to(device)
+
+    with torch.no_grad():
+        for batch in test_dataloader:
+            anchor, positive, negative = [x.to(device) for x in batch[0]]
+            anchor_emb = model(anchor)
+            positive_emb = model(positive)
+            negative_emb = model(negative)
+
+            batch_loss = crit(anchor_emb, positive_emb, negative_emb)
+            total_loss += batch_loss.item()
+
+            # Compute cosine similarities
+            pos_similarity = F.cosine_similarity(anchor_emb, positive_emb)
+            neg_similarity = F.cosine_similarity(anchor_emb, negative_emb)
+
+            # Determine correct predictions based on a similarity threshold
+            similarity_threshold = 0.5  # Adjust this threshold as needed
+            correct_preds += torch.sum((pos_similarity > similarity_threshold) & (neg_similarity < similarity_threshold)).item()
+            total_triplets += anchor.size(0)
+
+    avg_loss = total_loss / total_triplets
+    accuracy = correct_preds / total_triplets
+
+    print(f"Average Loss: {avg_loss}, Accuracy: {accuracy}")
+    
+    return accuracy
 
 
 def get_mean_std(dataset):
@@ -471,7 +506,7 @@ if __name__ == "__main__":
         # pass
 
     # model = torch.load(f"models/{model_name}.pt")
-        model = torch.load(f"models/{model_name}_{id}_20_{iter_}.pt")
+        model = torch.load(f"models/{model_name}_{id}_30_{iter_}.pt")
         print(f"Model: {model_name}_{id}_10_{iter_}.pt")
 
         score = test(model)
