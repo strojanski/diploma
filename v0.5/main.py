@@ -58,13 +58,13 @@ def get_model(name="resnet"):
 def train(model):
     torchvision.disable_beta_transforms_warning()
 
-    criterion = TripletLoss()
-    # optimizer = torch.optim.SGD(model.parameters(), lr=1e-4, momentum=0.9)
+    criterion = torch.nn.TripletMarginLoss()
+    # optimizer = torch.optim.SGD(model.parameters(), lr=1e-4)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
-    scheduler = torch.optim.lr_scheduler.StepLR(
-        optimizer, step_size=50, gamma=0.1, verbose=True
-    )
-    epochs = 200
+    # scheduler = torch.optim.lr_scheduler.StepLR(
+    #     optimizer, step_size=50, gamma=0.1, verbose=True
+    # )
+    epochs = 5000
     model = model.to(device)
 
     loss_history = []
@@ -92,7 +92,7 @@ def train(model):
             positive_emb = model(positive_img)
             negative_emb = model(negative_img)
             
-            loss_ = criterion.forward(anchor_emb, positive_emb, negative_emb)          
+            loss_ = criterion(anchor_emb, positive_emb, negative_emb)          
 
             optimizer.zero_grad()
 
@@ -108,7 +108,7 @@ def train(model):
             torch.save(model, f"models/{model_name}_{id}_{epoch}_{iter_}.pt")
             np.savetxt(f"data/loss_/loss_history_{model_name}_{id}_{iter_}.txt", loss_history, fmt="%f", delimiter=",")
 
-        scheduler.step()
+        # scheduler.step()
 
         print(f"Epoch: {epoch+1}/{epochs}, loss_: {epoch_loss}")
 
@@ -131,17 +131,28 @@ def calculate_metrics(predictions, ys, label):
 
 def test(model):
     model.eval()
-
     predictions = []
     ys = []
     correct_preds = 0
     total_samples = 0
-    
+    loss = 0
+    crit = torch.nn.TripletMarginLoss()
+    n_preds = 0
+    n_correct_preds = 0
     model = model.to(device)
     with torch.no_grad():  # Disable gradiant calculation
         epoch_scores = []
         for batch in test_dataloader:
             data, labels = batch 
+            # img_anc, label_anc = data[0].to(device), labels[0].to(device)
+            
+            # outputs = model(img_anc)
+            # preds = torch.argmax(outputs, dim=1)    # Feature vector
+            # ys.extend(label_anc.tolist())
+            # predictions.extend(preds.cpu().tolist())
+
+
+            #    print(np.array(predictions).shape, np.array(ys).shape)
             # print(labels)   # Array of [bs] labels
             anchor, positive, negative = data
             anchor_img = anchor
@@ -155,6 +166,16 @@ def test(model):
             anchor_emb = model(anchor_img)
             positive_emb = model(positive_img)
             negative_emb = model(negative_img)
+            
+            positive_dist = crit(anchor_emb, positive_emb, negative_emb)
+            
+            correct_pred = positive_dist < .5 # True/False
+            if correct_pred:
+                n_correct_preds += 1
+                
+            n_preds += 1
+            
+            epoch_scores.append(loss)
             
             anchor_label, positive_label, negative_label = labels
             anchor_label = anchor_label.to(device)
@@ -199,7 +220,9 @@ def test(model):
                     correct_preds += 1
                                 
             total_samples += len(anchor_label)
+    print(epoch_scores)
     
+    print("N preds:" , n_preds, "n correct preds: ", n_correct_preds, "\nAccuracy", n_correct_preds / n_preds)
     
     # np.savetxt("score_outputs.txt", epoch_scores)
     acc = 0
@@ -245,10 +268,14 @@ def split_triplets(X, y):
 
     an, pos, neg = [], [], []
 
-    negs = np.roll(np.array(list(label_to_indices.keys())), shift=1)
-    print(negs, "\n")
+    # negs = np.roll(np.array(list(label_to_indices.keys())), shift=1)
 
     for i, label in enumerate(label_to_indices.keys()):
+        negs = np.random.choice(list(label_to_indices.keys()), len(list(label_to_indices.keys())), replace=False)
+        while negs[0] == label:
+            negs = np.random.choice(list(label_to_indices.keys()), len(list(label_to_indices.keys())), replace=False)
+
+        
         subarray_size = len(label_to_indices[label]) // 3 + 1
         print(subarray_size)
 
@@ -392,7 +419,7 @@ if __name__ == "__main__":
                 model.classifier[6] = nn.Linear(num_features, n_classes)
         else:
             # model = torch.load(f"models/{model_name}_{id}.pt")
-            model = torch.load(f"models/{model_name}_1_80_1.pt")
+            model = torch.load(f"models/{model_name}_1_1.pt")
             model.fc = nn.Identity()
             
             # model = model.children()[:-1]
@@ -408,6 +435,8 @@ if __name__ == "__main__":
         test_dataset = torch.load(f"data/test_dataset_{id}.pt")
         train_dataset = torch.load(f"data/train_dataset_{id}.pt")
         
+        
+        print(len(test_dataset), len(train_dataset))
         # ad, al, pd, pl, nd, nl = train_dataset.get_data(0)
         # print("Testing...")
         # print(al, pl, nl)      
@@ -441,8 +470,9 @@ if __name__ == "__main__":
                     plt.show()
         # pass
 
-        # model = torch.load(f"models/{model_name}.pt")
-        model = torch.load(f"models/{model_name}_{id}_10_{iter_}.pt")
+    # model = torch.load(f"models/{model_name}.pt")
+        model = torch.load(f"models/{model_name}_{id}_20_{iter_}.pt")
+        print(f"Model: {model_name}_{id}_10_{iter_}.pt")
 
         score = test(model)
         print(f"Accuracy: {score*100}%")
