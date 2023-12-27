@@ -38,14 +38,14 @@ parser.add_argument(
 
 def get_train_data(train_dataset, batch_size=16):
     trainloader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=batch_size, shuffle=True, num_workers=1
+        train_dataset, batch_size=batch_size, shuffle=False, num_workers=1
     )
     return trainloader
 
 
 def get_test_data(test_dataset, batch_size=16):
     trainloader = torch.utils.data.DataLoader(
-        test_dataset, batch_size=batch_size, shuffle=True, num_workers=1
+        test_dataset, batch_size=batch_size, shuffle=False, num_workers=1
     )
     return trainloader
 
@@ -61,9 +61,9 @@ def train(model):
     criterion = torch.nn.TripletMarginLoss()
     # optimizer = torch.optim.SGD(model.parameters(), lr=1e-4)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
-    # scheduler = torch.optim.lr_scheduler.StepLR(
-    #     optimizer, step_size=50, gamma=0.1, verbose=True
-    # )
+    scheduler = torch.optim.lr_scheduler.StepLR(
+        optimizer, step_size=30, gamma=0.1, verbose=True
+    )
     epochs = 5000
     model = model.to(device)
 
@@ -78,11 +78,13 @@ def train(model):
                 print(f"Batch {batch_count}/{len(train_dataloader)}")
             batch_count += 1
             
-            data, _ = batch
+            data, labels = batch
             anchor, positive, negative = data
             anchor_img = anchor
             positive_img = positive
             negative_img = negative
+
+            label_0, label_1, label_2 = labels
 
             anchor_img = anchor_img.to(device)
             positive_img = positive_img.to(device)
@@ -91,6 +93,12 @@ def train(model):
             anchor_emb = model(anchor_img)
             positive_emb = model(positive_img)
             negative_emb = model(negative_img)
+            
+            # for batch in range(len(anchor_emb)):
+            #     torch.save(anchor_emb[batch], f"embeddings/{label_0[batch]}_{batch}b_train")
+            #     torch.save(positive_emb[batch], f"embeddings/{label_1[batch]}_{batch}b_train")
+            #     torch.save(negative_emb[batch], f"embeddings/{label_2[batch]}_{batch}b_train")
+                #
             
             loss_ = criterion(anchor_emb, positive_emb, negative_emb)          
 
@@ -103,12 +111,13 @@ def train(model):
             
             epoch_loss += loss_.item()
         loss_history.append(epoch_loss)
+        # break
 
         if epoch % 10 == 0 and epoch != 0:
             torch.save(model, f"models/{model_name}_{id}_{epoch}_{iter_}.pt")
             np.savetxt(f"data/loss_/loss_history_{model_name}_{id}_{iter_}.txt", loss_history, fmt="%f", delimiter=",")
 
-        # scheduler.step()
+        scheduler.step()
 
         print(f"Epoch: {epoch+1}/{epochs}, loss_: {epoch_loss}")
 
@@ -243,6 +252,38 @@ def test(model):
     return accuracy_score(ys, predictions)
 """
 
+# def test(model, margin=1.0):  # Assuming margin is 1.0, adjust as needed
+#     model.eval()
+#     correct_preds = 0
+#     total_triplets = 0
+#     total_loss = 0
+#     crit = torch.nn.TripletMarginLoss(margin=margin)
+#     model = model.to(device)
+
+#     with torch.no_grad():
+#         for batch in test_dataloader:
+#             anchor, positive, negative = [x.to(device) for x in batch[0]]
+#             anchor_emb = model(anchor)
+#             positive_emb = model(positive)
+#             negative_emb = model(negative)
+
+#             batch_loss = crit(anchor_emb, positive_emb, negative_emb)
+#             total_loss += batch_loss.item()
+
+#             # Distances
+#             pos_dist = torch.nn.functional.pairwise_distance(anchor_emb, positive_emb)
+#             neg_dist = torch.nn.functional.pairwise_distance(anchor_emb, negative_emb)
+
+#             # Count correct predictions
+#             correct_preds += torch.sum(pos_dist + margin < neg_dist).item()
+#             total_triplets += anchor.size(0)
+
+#     avg_loss = total_loss / total_triplets
+#     accuracy = correct_preds / total_triplets
+
+#     print(f"Average Loss: {avg_loss:.4f}, Accuracy: {accuracy:.4f}")
+#     return accuracy
+
 def test(model):  # Assuming margin is 1.0, adjust as needed
     model.eval()
     correct_preds = 0
@@ -251,12 +292,26 @@ def test(model):  # Assuming margin is 1.0, adjust as needed
     crit = torch.nn.TripletMarginLoss()
     model = model.to(device)
 
+    pos_similarities = []
+    neg_similarities = []
+    neg_maxes = []
+    pos_mins = []
+    centers = []
+
     with torch.no_grad():
+        # for batch in train_dataloader:
         for batch in test_dataloader:
             anchor, positive, negative = [x.to(device) for x in batch[0]]
+            label_0, label_1, label_2 = [x for x in batch[1]]
             anchor_emb = model(anchor)
             positive_emb = model(positive)
             negative_emb = model(negative)
+
+            for batch in range(len(anchor_emb)):
+                torch.save(anchor_emb[batch], f"embeddings/{label_0[batch]}_{batch}b_test")
+                torch.save(positive_emb[batch], f"embeddings/{label_1[batch]}_{batch}b_test")
+                torch.save(negative_emb[batch], f"embeddings/{label_2[batch]}_{batch}b_test")
+                #
 
             batch_loss = crit(anchor_emb, positive_emb, negative_emb)
             total_loss += batch_loss.item()
@@ -264,14 +319,44 @@ def test(model):  # Assuming margin is 1.0, adjust as needed
             # Compute cosine similarities
             pos_similarity = F.cosine_similarity(anchor_emb, positive_emb)
             neg_similarity = F.cosine_similarity(anchor_emb, negative_emb)
-
+                        
+            # pos_similarities.extend(np.mean(pos_similarity.cpu().tolist()))
+            # neg_similarities.extend(np.mean(neg_similarity.cpu().tolist()))
+            avg_pos = np.mean(pos_similarity.to("cpu").numpy())
+            avg_neg = np.mean(neg_similarity.to("cpu").numpy())
+            
+            pos_similarities.append(avg_pos)
+            neg_similarities.append(avg_neg)
+            pos_mins.append(np.std(pos_similarity.to("cpu").numpy()))
+            neg_maxes.append(np.std(neg_similarity.to("cpu").numpy()))
+            
+            center = (avg_pos + avg_neg) / 2
+            centers.append(center)
+            
             # Determine correct predictions based on a similarity threshold
-            similarity_threshold = 0.5  # Adjust this threshold as needed
-            correct_preds += torch.sum((pos_similarity > similarity_threshold) & (neg_similarity < similarity_threshold)).item()
+            similarity_threshold = 0.5704728960990906
+            # correct_preds += torch.sum((pos_similarity > similarity_threshold) & (neg_similarity < similarity_threshold)).item()
+            # correct_preds += torch.sum((pos_similarity > similarity_threshold) & (neg_similarity < pos_similarity)).item()
+            # correct_preds += torch.sum(pos_similarity > similarity_threshold).item()
+            correct_preds += torch.sum(neg_similarity < pos_similarity).item()
+            
             total_triplets += anchor.size(0)
 
     avg_loss = total_loss / total_triplets
     accuracy = correct_preds / total_triplets
+
+    from operator import add, sub
+    plt.plot(pos_similarities, label="Positive")
+    plt.plot(neg_similarities, label="Negative")
+    # plt.plot(list(map(sub, pos_similarities, pos_mins)), label="Positive interval")
+    # plt.plot(list(map(add, pos_similarities, pos_mins)), label="Positive interval")
+    # plt.plot(list(map(sub, neg_similarities, neg_maxes)), label="Negative interval")
+    # plt.plot(list(map(add, neg_similarities, neg_maxes)), label="Negative interval")
+    plt.plot(centers, label="Center")
+    plt.legend()
+    plt.show()
+    
+    print(np.mean(centers))
 
     print(f"Average Loss: {avg_loss}, Accuracy: {accuracy}")
     
@@ -454,7 +539,7 @@ if __name__ == "__main__":
                 model.classifier[6] = nn.Linear(num_features, n_classes)
         else:
             # model = torch.load(f"models/{model_name}_{id}.pt")
-            model = torch.load(f"models/{model_name}_1_1.pt")
+            model = torch.load(f"models/{model_name}_2_270_7.pt")
             model.fc = nn.Identity()
             
             # model = model.children()[:-1]
@@ -506,8 +591,8 @@ if __name__ == "__main__":
         # pass
 
     # model = torch.load(f"models/{model_name}.pt")
-        model = torch.load(f"models/{model_name}_{id}_30_{iter_}.pt")
-        print(f"Model: {model_name}_{id}_10_{iter_}.pt")
+        model = torch.load(f"models/{model_name}_{id}_210_{iter_}.pt")
+        print(f"Model: {model_name}_{id}_40_{iter_}.pt")
 
         score = test(model)
         print(f"Accuracy: {score*100}%")
