@@ -427,6 +427,19 @@ def split_triplets(X, y):
     return (anchor_data, anchor_labels), (positive_data, positive_labels), (negative_data, negative_labels)
 
 
+def osr_standard(emb, embedings):
+    # Get the embedding with the smallest distance to the anchor
+    min_dist = np.inf
+    min_emb = None
+    
+    for i, e in enumerate(embedings):
+        dist = torch.pairwise_distance(emb, e)
+        if dist < min_dist:
+            min_dist = dist
+            min_emb = e
+    
+    return i, e        
+
 
 if __name__ == "__main__":
     torchvision.disable_beta_transforms_warning()
