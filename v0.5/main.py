@@ -438,7 +438,7 @@ def osr_standard(emb, embedings):
             min_dist = dist
             min_emb = e
     
-    return i, e        
+    return min_dist, min_emb        
 
 
 if __name__ == "__main__":
