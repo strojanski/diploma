@@ -15,3 +15,4 @@ v0.4/models/*
 *.png
 *.jpg
 *.txt
+**/embeddings

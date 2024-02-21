@@ -16,7 +16,8 @@ from torchvision import transforms as T
 
 from ear_dataset import EarDataset, EarTriplet
 from triplet import TripletLoss
-import torch.functional as F
+import torch.nn.functional as F
+from torch.nn.functional import cosine_similarity
 
 parser = argparse.ArgumentParser(description="Person recognition on ear dataset.")
 parser.add_argument(
@@ -38,14 +39,14 @@ parser.add_argument(
 
 def get_train_data(train_dataset, batch_size=16):
     trainloader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=batch_size, shuffle=True, num_workers=1
+        train_dataset, batch_size=batch_size, shuffle=False, num_workers=1
     )
     return trainloader
 
 
 def get_test_data(test_dataset, batch_size=16):
     trainloader = torch.utils.data.DataLoader(
-        test_dataset, batch_size=batch_size, shuffle=True, num_workers=1
+        test_dataset, batch_size=batch_size, shuffle=False, num_workers=1
     )
     return trainloader
 
@@ -58,15 +59,16 @@ def get_model(name="resnet"):
 def train(model):
     torchvision.disable_beta_transforms_warning()
 
-    triplet_loss = torch.nn.TripletMarginLoss()
+    criterion = torch.nn.TripletMarginLoss()
+    # optimizer = torch.optim.SGD(model.parameters(), lr=1e-4)
     # optimizer = torch.optim.SGD(model.parameters(), lr=1e-4, momentum=0.9)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     scheduler = torch.optim.lr_scheduler.StepLR(
-        optimizer, step_size=50, gamma=0.1, verbose=True
+        optimizer, step_size=30, gamma=0.1, verbose=True
     )
-    epochs = 200
+    epochs = 5000
     model = model.to(device)
-
+    model.train()
     loss_history = []
 
     for epoch in range(epochs):
@@ -78,11 +80,13 @@ def train(model):
                 print(f"Batch {batch_count}/{len(train_dataloader)}")
             batch_count += 1
             
-            data, _ = batch
+            data, labels = batch
             anchor, positive, negative = data
             anchor_img = anchor
             positive_img = positive
             negative_img = negative
+
+            label_0, label_1, label_2 = labels
 
             anchor_img = anchor_img.to(device)
             positive_img = positive_img.to(device)
@@ -92,7 +96,13 @@ def train(model):
             positive_emb = model(positive_img)
             negative_emb = model(negative_img)
             
-            loss_ = triplet_loss(anchor_emb, positive_emb, negative_emb)          
+            # for batch in range(len(anchor_emb)):
+            #     torch.save(anchor_emb[batch], f"embeddings/{label_0[batch]}_{batch}b_train")
+            #     torch.save(positive_emb[batch], f"embeddings/{label_1[batch]}_{batch}b_train")
+            #     torch.save(negative_emb[batch], f"embeddings/{label_2[batch]}_{batch}b_train")
+                #
+            
+            loss_ = criterion(anchor_emb, positive_emb, negative_emb)          
 
             optimizer.zero_grad()
 
@@ -102,7 +112,12 @@ def train(model):
             optimizer.step()
             
             epoch_loss += loss_.item()
+        
+        score = test(model)
+        print("Score: ", score)
+            
         loss_history.append(epoch_loss)
+        # break
 
         if epoch % 10 == 0 and epoch != 0:
             torch.save(model, f"models/{model_name}_{id}_{epoch}_{iter_}.pt")
@@ -115,7 +130,6 @@ def train(model):
     np.savetxt(f"data/loss_/loss_history_{model_name}_{id}_{epoch}_{batch_size}_{iter_}.txt", loss_history, fmt="%f", delimiter=",")
     plt.plot(loss_history)
     plt.show()
-
     
     
     return model
@@ -128,20 +142,31 @@ def calculate_metrics(predictions, ys, label):
     FN = np.sum((np.array(ys) == label) & (np.array(predictions) != label))
     return TP, TN, FP, FN
 
-
+"""
 def test(model):
     model.eval()
-
     predictions = []
     ys = []
     correct_preds = 0
     total_samples = 0
-    
+    loss = 0
+    crit = torch.nn.TripletMarginLoss()
+    n_preds = 0
+    n_correct_preds = 0
     model = model.to(device)
     with torch.no_grad():  # Disable gradiant calculation
         epoch_scores = []
         for batch in test_dataloader:
             data, labels = batch 
+            # img_anc, label_anc = data[0].to(device), labels[0].to(device)
+            
+            # outputs = model(img_anc)
+            # preds = torch.argmax(outputs, dim=1)    # Feature vector
+            # ys.extend(label_anc.tolist())
+            # predictions.extend(preds.cpu().tolist())
+
+
+            #    print(np.array(predictions).shape, np.array(ys).shape)
             # print(labels)   # Array of [bs] labels
             anchor, positive, negative = data
             anchor_img = anchor
@@ -155,6 +180,16 @@ def test(model):
             anchor_emb = model(anchor_img)
             positive_emb = model(positive_img)
             negative_emb = model(negative_img)
+            
+            positive_dist = crit(anchor_emb, positive_emb, negative_emb)
+            
+            correct_pred = positive_dist < .5 # True/False
+            if correct_pred:
+                n_correct_preds += 1
+                
+            n_preds += 1
+            
+            epoch_scores.append(loss)
             
             anchor_label, positive_label, negative_label = labels
             anchor_label = anchor_label.to(device)
@@ -199,7 +234,9 @@ def test(model):
                     correct_preds += 1
                                 
             total_samples += len(anchor_label)
+    print(epoch_scores)
     
+    print("N preds:" , n_preds, "n correct preds: ", n_correct_preds, "\nAccuracy", n_correct_preds / n_preds)
     
     # np.savetxt("score_outputs.txt", epoch_scores)
     acc = 0
@@ -218,6 +255,157 @@ def test(model):
     print("Precision score: ", precision_score(ys, predictions, average="micro"))
 
     return accuracy_score(ys, predictions)
+"""
+
+# def test(model, margin=1.0):  # Assuming margin is 1.0, adjust as needed
+#     model.eval()
+#     correct_preds = 0
+#     total_triplets = 0
+#     total_loss = 0
+#     crit = torch.nn.TripletMarginLoss(margin=margin)
+#     model = model.to(device)
+
+#     with torch.no_grad():
+#         for batch in test_dataloader:
+#             anchor, positive, negative = [x.to(device) for x in batch[0]]
+#             anchor_emb = model(anchor)
+#             positive_emb = model(positive)
+#             negative_emb = model(negative)
+
+#             batch_loss = crit(anchor_emb, positive_emb, negative_emb)
+#             total_loss += batch_loss.item()
+
+#             # Distances
+#             pos_dist = torch.nn.functional.pairwise_distance(anchor_emb, positive_emb)
+#             neg_dist = torch.nn.functional.pairwise_distance(anchor_emb, negative_emb)
+
+#             # Count correct predictions
+#             correct_preds += torch.sum(pos_dist + margin < neg_dist).item()
+#             total_triplets += anchor.size(0)
+
+#     avg_loss = total_loss / total_triplets
+#     accuracy = correct_preds / total_triplets
+
+#     print(f"Average Loss: {avg_loss:.4f}, Accuracy: {accuracy:.4f}")
+#     return accuracy
+
+def test(model):  # Assuming margin is 1.0, adjust as needed
+    model.eval()
+    correct_preds = 0
+    total_triplets = 0
+    total_loss = 0
+    crit = torch.nn.TripletMarginLoss()
+    model = model.to(device)
+
+    pos_similarities = []
+    neg_similarities = []
+    neg_maxes = []
+    pos_mins = []
+    centers = []
+
+    embeddings = []
+    labels = []
+
+    with torch.no_grad():
+        # for batch in train_dataloader:
+        for batch in test_dataloader:
+            anchor, positive, negative = [x.to(device) for x in batch[0]]
+            label_0, label_1, label_2 = [x.cpu() for x in batch[1]]
+            anchor_emb = model(anchor)
+            positive_emb = model(positive)
+            negative_emb = model(negative)
+
+            batch_labels = []
+            # batch_labels.extend(label_0.cpu())
+            batch_labels.extend(label_1.cpu())
+            batch_labels.extend(label_2.cpu())
+            
+            batch_emb = []
+            # batch_emb.extend(anchor_emb.cpu())
+            batch_emb.extend(positive_emb.cpu())
+            batch_emb.extend(negative_emb.cpu())
+            
+
+            labels.extend(batch_labels)
+            embeddings.extend(batch_emb)
+
+            batch_loss = crit(anchor_emb, positive_emb, negative_emb)
+            total_loss += batch_loss.item()
+
+            # Compute cosine similarities
+            pos_similarity = F.cosine_similarity(anchor_emb, positive_emb)
+            neg_similarity = F.cosine_similarity(anchor_emb, negative_emb)
+                        
+            # pos_similarities.extend(np.mean(pos_similarity.cpu().tolist()))
+            # neg_similarities.extend(np.mean(neg_similarity.cpu().tolist()))
+            avg_pos = np.mean(pos_similarity.to("cpu").numpy())
+            avg_neg = np.mean(neg_similarity.to("cpu").numpy())
+            
+            pos_similarities.append(avg_pos)
+            neg_similarities.append(avg_neg)
+            pos_mins.append(np.std(pos_similarity.to("cpu").numpy()))
+            neg_maxes.append(np.std(neg_similarity.to("cpu").numpy()))
+            
+            center = (avg_pos + avg_neg) / 2
+            centers.append(center)
+            
+            # Determine correct predictions based on a similarity threshold
+            similarity_threshold = 0.5704728960990906
+            # correct_preds += torch.sum((pos_similarity > similarity_threshold) & (neg_similarity < similarity_threshold)).item()
+            # correct_preds += torch.sum((pos_similarity > similarity_threshold) & (neg_similarity < pos_similarity)).item()
+            # correct_preds += torch.sum(pos_similarity > similarity_threshold).item()
+            correct_preds += torch.sum(neg_similarity < pos_similarity).item()
+            
+            total_triplets += anchor.size(0)
+
+    avg_loss = total_loss / total_triplets
+    accuracy = correct_preds / total_triplets
+
+    n_total = len(embeddings)
+
+    from sklearn.metrics.pairwise import cosine_similarity
+
+    # Assuming 'embeddings' is a NumPy array of shape (n_samples, n_features)
+    # and 'labels' is a list or array of labels corresponding to each embedding
+
+    for i in range(len(embeddings)):
+        embeddings[i] = embeddings[i].detach().numpy()
+        labels[i] = labels[i].detach().numpy()
+
+    embeddings = np.array(embeddings)
+    labels = np.array(labels)
+    
+    # Compute the cosine similarity matrix for all embeddings
+    similarity_matrix = cosine_similarity(embeddings)
+
+    # Mask the diagonal (self-comparisons) by setting it to a large negative value
+    np.fill_diagonal(similarity_matrix, -np.inf)
+
+    # Find the index of the max similarity for each embedding (excluding self)
+    most_similar_indices = np.argmax(similarity_matrix, axis=1)
+
+    # Extract the labels of the most similar items
+    predicted_labels = [labels[i] for i in most_similar_indices]
+
+    # Calculate the number of correct predictions
+    n_correct = sum(1 for true_label, predicted_label in zip(labels, predicted_labels) if true_label == predicted_label)
+
+
+    print(f"Number of correct matches: {n_correct}")
+
+
+    print(f"Number of correct predictions: {n_correct}")
+
+            
+        # else:
+        #     print(labels[max_index], labels[i])        
+
+    acc = n_correct / n_total
+    
+
+    print(f"Average Loss: {avg_loss}, Accuracy: {acc}")
+    
+    return accuracy
 
 
 def get_mean_std(dataset):
@@ -245,10 +433,14 @@ def split_triplets(X, y):
 
     an, pos, neg = [], [], []
 
-    negs = np.roll(np.array(list(label_to_indices.keys())), shift=1)
-    print(negs, "\n")
+    # negs = np.roll(np.array(list(label_to_indices.keys())), shift=1)
 
     for i, label in enumerate(label_to_indices.keys()):
+        negs = np.random.choice(list(label_to_indices.keys()), len(list(label_to_indices.keys())), replace=False)
+        while negs[0] == label:
+            negs = np.random.choice(list(label_to_indices.keys()), len(list(label_to_indices.keys())), replace=False)
+
+        
         subarray_size = len(label_to_indices[label]) // 3 + 1
         print(subarray_size)
 
@@ -281,6 +473,19 @@ def split_triplets(X, y):
             
     return (anchor_data, anchor_labels), (positive_data, positive_labels), (negative_data, negative_labels)
 
+
+def osr_standard(emb, embedings):
+    # Get the embedding with the smallest distance to the anchor
+    min_dist = np.inf
+    min_emb = None
+    
+    for i, e in enumerate(embedings):
+        dist = torch.pairwise_distance(emb, e)
+        if dist < min_dist:
+            min_dist = dist
+            min_emb = e
+    
+    return min_dist, min_emb        
 
 
 if __name__ == "__main__":
@@ -348,10 +553,13 @@ if __name__ == "__main__":
 
     if mode == "train":
         train_dataset = torch.load(f"data/train_dataset_1.pt")
-        train_dataset.labels_to_long()
+        # train_dataset.labels_to_long()
+        
+        test_dataset = torch.load(f"data/test_dataset_1.pt")
 
         # Create train data loader
         train_dataloader = get_train_data(train_dataset, batch_size=batch_size)
+        test_dataloader = get_test_data(test_dataset, batch_size=batch_size)
 
         m = "new"
         m = "old"
@@ -359,8 +567,8 @@ if __name__ == "__main__":
         model = None
         if m == "new":
             # Get model and modify classifier
-            model = get_model(f"{model_name}_{id}_{iter_}")
-            # model.fc = nn.Identity()
+            model = get_model(f"baseline_model.pt")
+            model.fc = nn.Identity()
 
             # model = list(model.children())[:-1]
 
@@ -377,24 +585,24 @@ if __name__ == "__main__":
                 model.classifier[1] = nn.Conv2d(
                     512, n_classes, kernel_size=(1, 1), stride=(1, 1)
                 )
-            elif (
-                model_name == "resnet"
-                or model_name == "inception"
-                or model_name == "resnext"
-                or model_name == "wideresnet"
-                or model_name == "googlenet"
-            ):
-                num_features = model.fc.in_features
-                model.fc = nn.Linear(num_features, n_classes)
-            elif model_name == "densenet":
-                num_features = model.classifier.in_features
-                model.classifier = nn.Linear(num_features, n_classes)
-            elif model_name == "alexnet":
-                num_features = model.classifier[6].in_features
-                model.classifier[6] = nn.Linear(num_features, n_classes)
+            # elif (
+            #     model_name == "resnet"
+            #     or model_name == "inception"
+            #     or model_name == "resnext"
+            #     or model_name == "wideresnet"
+            #     or model_name == "googlenet"
+            # ):
+            #     # num_features = model.fc.in_features
+            #     # model.fc = nn.Linear(num_features, n_classes)
+            # elif model_name == "densenet":
+            #     num_features = model.classifier.in_features
+            #     model.classifier = nn.Linear(num_features, n_classes)
+            # elif model_name == "alexnet":
+            #     num_features = model.classifier[6].in_features
+            #     model.classifier[6] = nn.Linear(num_features, n_classes)
         else:
             # model = torch.load(f"models/{model_name}_{id}.pt")
-            model = torch.load(f"models/{model_name}_1_80_1.pt")
+            model = torch.load(f"models/{model_name}_1_40_3.pt")
             model.fc = nn.Identity()
             
             # model = model.children()[:-1]
@@ -410,6 +618,8 @@ if __name__ == "__main__":
         test_dataset = torch.load(f"data/test_dataset_{id}.pt")
         train_dataset = torch.load(f"data/train_dataset_{id}.pt")
         
+        
+        print(len(test_dataset), len(train_dataset))
         # ad, al, pd, pl, nd, nl = train_dataset.get_data(0)
         # print("Testing...")
         # print(al, pl, nl)      
@@ -443,8 +653,9 @@ if __name__ == "__main__":
                     plt.show()
         # pass
 
-        # model = torch.load(f"models/{model_name}.pt")
-        model = torch.load(f"models/{model_name}_{id}_10_{iter_}.pt")
+    # model = torch.load(f"models/{model_name}.pt")
+        model = torch.load(f"models/{model_name}_{id}_210_{iter_}.pt")
+        # print(f"Model: {model_name}_{id}_40_{iter_}.pt")
 
         score = test(model)
         print(f"Accuracy: {score*100}%")
