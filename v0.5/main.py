@@ -611,6 +611,7 @@ if __name__ == "__main__":
 
         # Train model
         model = train(model)
+        
 
         torch.save(model, f"models/{model_name}_{id}_final_{iter_}.pt")
 
