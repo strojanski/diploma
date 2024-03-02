@@ -13,7 +13,8 @@ from torchvision.transforms import v2 as transforms
 torchvision.disable_beta_transforms_warning()
 
 
-def resize_input(input_data: np.ndarray, tgt_size=224, mode="train") -> dict:
+
+def     resize_input(input_data: np.ndarray, tgt_size=224, mode="train") -> dict:
     """
     Input data: arary of images
     Output data: array of images, resized to 2 tgt_size x 2 tgt_size
@@ -23,12 +24,12 @@ def resize_input(input_data: np.ndarray, tgt_size=224, mode="train") -> dict:
     # train - rotation & contrast brightness, saturation hue, shear, randomcrop
     preprocess = transforms.Compose(
         [
-            transforms.Resize(224),
+            # transforms.Resize(224),
             # transforms.RandomShortestSize(200),
             # transforms.ElasticTransform(),
             # transforms.RandomResizedCrop(size=(224, 224), antialias=True),
             transforms.RandomHorizontalFlip(p=0.3),
-            # transforms.RandomRotation(degrees=25),
+            transforms.RandomRotation(degrees=15),
             # transforms.RandomPerspective(distortion_scale=.15),
             # transforms.RandomAdjustSharpness(sharpness_factor=1.5, p=0.3),
             # transforms.GaussianBlur(kernel_size=3),
@@ -64,6 +65,10 @@ def resize_input(input_data: np.ndarray, tgt_size=224, mode="train") -> dict:
     return input_data
 
 
+# Usage example:
+# processed_data = resize_input(input_data, tgt_size=224, mode="train")
+
+
 def train_test_split(input_data: dict, test_ssize=0.3):
     X_train, X_test = [], []
     y_train, y_test = [], []
@@ -76,8 +81,8 @@ def train_test_split(input_data: dict, test_ssize=0.3):
         
         X_train.extend(imgs[:train_size])
         X_test.extend(imgs[train_size:])
-        y_train.extend([int(person)] * len(imgs[:-test_size]))
-        y_test.extend([int(person)] * len(imgs[-test_size:]))
+        y_train.extend([int(person)] * len(imgs[:train_size]))
+        y_test.extend([int(person)] * len(imgs[train_size:]))
 
     y_train = np.array(list(y_train)) - 1
     y_test = np.array(list(y_test)) - 1
