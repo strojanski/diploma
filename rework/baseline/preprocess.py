@@ -64,15 +64,15 @@ def resize_input(input_data: np.ndarray, tgt_size=224, mode="train") -> dict:
     return input_data
 
 
-def train_test_split(input_data: dict, test_size=0.3):
+def train_test_split(input_data: dict, test_ssize=0.3):
     X_train, X_test = [], []
     y_train, y_test = [], []
 
     # X data split, y = person
     for person, imgs in input_data.items():
         n_imgs = len(imgs)
-        train_size = int(n_imgs * (1 - test_size))
-        test_size = int(n_imgs * test_size)
+        train_size = int(n_imgs * (1 - test_ssize))
+        test_size = int(n_imgs * test_ssize)
         
         X_train.extend(imgs[:train_size])
         X_test.extend(imgs[train_size:])
