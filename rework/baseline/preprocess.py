@@ -13,8 +13,7 @@ from torchvision.transforms import v2 as transforms
 torchvision.disable_beta_transforms_warning()
 
 
-
-def     resize_input(input_data: np.ndarray, tgt_size=224, mode="train") -> dict:
+def resize_input(input_data: np.ndarray, tgt_size=64, mode="train"):
     """
     Input data: arary of images
     Output data: array of images, resized to 2 tgt_size x 2 tgt_size
@@ -24,22 +23,11 @@ def     resize_input(input_data: np.ndarray, tgt_size=224, mode="train") -> dict
     # train - rotation & contrast brightness, saturation hue, shear, randomcrop
     preprocess = transforms.Compose(
         [
-            # transforms.Resize(224),
-            # transforms.RandomShortestSize(200),
-            # transforms.ElasticTransform(),
-            # transforms.RandomResizedCrop(size=(224, 224), antialias=True),
+            transforms.Resize(tgt_size, interpolation=Image.BICUBIC),
             transforms.RandomHorizontalFlip(p=0.3),
-            transforms.RandomRotation(degrees=15),
-            # transforms.RandomPerspective(distortion_scale=.15),
-            # transforms.RandomAdjustSharpness(sharpness_factor=1.5, p=0.3),
-            # transforms.GaussianBlur(kernel_size=3),
-            # transforms.ColorJitter(
-            #     brightness=0.1, contrast=0.1, saturation=0.1, hue=0.01
-            # ),
             transforms.ConvertImageDtype(torch.float32),
-            # transforms.Normalize(mean=[0.4026756, 0.40258485, 0.40231562], std=[0.26870993, 0.268518, 0.2680013]),
-            transforms.Resize([224, 112]),
-            transforms.Pad([56, 0]),
+            transforms.Resize([tgt_size, tgt_size//2], interpolation=Image.BICUBIC),
+            transforms.Pad([tgt_size//4, 0]),
         ]
     )
 
@@ -47,15 +35,14 @@ def     resize_input(input_data: np.ndarray, tgt_size=224, mode="train") -> dict
         preprocess = transforms.Compose(
             [
                 transforms.ConvertImageDtype(torch.float32),
-                transforms.Resize([224, 112]),
-                transforms.Pad([56, 0]),
+                transforms.Resize([tgt_size, tgt_size//2], interpolation=Image.BICUBIC),
+                transforms.Pad([tgt_size//4, 0]),
             ]
         )
 
     tensor = transforms.ToTensor()
 
     for i, img in enumerate(input_data):  # For each image
-        img = img / 255.0  # Normalize the image
         img = tensor(img)
 
         img = preprocess(img)
@@ -63,6 +50,7 @@ def     resize_input(input_data: np.ndarray, tgt_size=224, mode="train") -> dict
         input_data[i] = img
 
     return input_data
+
 
 
 # Usage example:
