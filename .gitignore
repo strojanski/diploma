@@ -8,10 +8,10 @@ v0.3 - baseline/models/*
 v0.4/data/*
 v0.4/models/*
 *.pyc
-*.pt
 *.pth
 *.npy
 *.log
+*.pt
 *.png
 *.jpg
 v0.**/*.txt
