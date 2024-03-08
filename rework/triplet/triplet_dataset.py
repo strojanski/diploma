@@ -11,8 +11,16 @@ class TripletDataset(Dataset):
         
         self.label_pool = self.labels
         
-        self.indexed_data = {label: np.array(data)[np.array(labels) == label] for label in self.label_pool}
+        self.indexed_data = {}
+        for label in np.unique(labels):  # Iterate only unique labels for initialization
+            self.indexed_data[label] = []
 
+        for d, label in zip(data, labels):
+            self.indexed_data[label].append(d)
+
+        # Convert lists to numpy arrays for efficient indexing later
+        for label in self.indexed_data:
+            self.indexed_data[label] = np.array(self.indexed_data[label])
         
     def __len__(self):
         return len(self.labels)
