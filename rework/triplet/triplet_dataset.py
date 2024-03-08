@@ -15,7 +15,7 @@ class TripletDataset(Dataset):
 
         
     def __len__(self):
-        return len(self.label_pool)
+        return len(self.labels)
     
     def __getitem__(self, index):
         """Returns a triplet (Xa, Xp, Xn), (ya, yp, yn) with random instances
@@ -28,8 +28,9 @@ class TripletDataset(Dataset):
         label = np.random.choice(self.label_pool, size=1)[0]
         
         # Remove that label from pool - ensure the dataset is finite + each class gets all instances
-        self.label_pool = np.delete(self.label_pool, np.where(self.label_pool == label))
-        
+        label_ix = np.where(self.label_pool == label)[0][0]  
+        self.label_pool = np.delete(self.label_pool, label_ix) 
+
         # Get 2 random instances of that class
         label_data = self.indexed_data[label]
         anchor, positive = np.random.choice(label_data, size=2, replace=False)  # replace=False ensures anchor and positive will always be distinct 
