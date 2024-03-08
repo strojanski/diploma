@@ -11,6 +11,9 @@ class TripletDataset(Dataset):
         
         self.label_pool = self.labels
         
+        self.indexed_data = {label: np.array(data)[np.array(labels) == label] for label in self.label_pool}
+
+        
     def __len__(self):
         return len(self.label_pool)
     
@@ -21,24 +24,19 @@ class TripletDataset(Dataset):
             _type_: 2 tuples (Xa, Xp, Xn), (ya, yp, yn)
         """
        
-        # Select a label 
+        # Select a label
         label = np.random.choice(self.label_pool, size=1)[0]
         
         # Remove that label from pool - ensure the dataset is finite + each class gets all instances
-        label_ix = np.where(self.label_pool == label)[0][0]
-        self.label_pool = np.delete(self.label_pool, label_ix)
+        self.label_pool = np.delete(self.label_pool, np.where(self.label_pool == label))
         
         # Get 2 random instances of that class
-        label_data = [self.data[i] for i in range(len(self.data)) if self.labels[i] == label]
+        label_data = self.indexed_data[label]
         anchor, positive = np.random.choice(label_data, size=2, replace=False)  # replace=False ensures anchor and positive will always be distinct 
         
         # Get an array of all classes that are not "label"
-        negative_classes = list(set(self.labels))
-        negative_classes = list(filter(lambda x: x != label, negative_classes))
-        
-        # Get 1 random instance of another class
-        neg_label = np.random.choice(negative_classes, size=1)[0]
-        negative = np.random.choice([self.data[i] for i in range(len(self.data)) if self.labels[i] == neg_label], size=1)[0]
+        neg_label = np.random.choice(list(set(self.labels) - {label}))
+        negative = np.random.choice(self.indexed_data[neg_label], size=1)[0]
         
         return (anchor, positive, negative), (label, label, neg_label)
 
