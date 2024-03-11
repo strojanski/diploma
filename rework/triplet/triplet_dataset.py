@@ -8,22 +8,11 @@ class TripletDataset(Dataset):
     def __init__(self, data, labels):
         self.data = data
         self.labels = labels.astype(np.int64)
-        
-        self.label_pool = self.labels
-        
-        self.indexed_data = {}
-        for label in np.unique(labels):  # Iterate only unique labels for initialization
-            self.indexed_data[label] = []
-
-        for d, label in zip(data, labels):
-            self.indexed_data[label].append(d)
-
-        # Convert lists to numpy arrays for efficient indexing later
-        for label in self.indexed_data:
-            self.indexed_data[label] = np.array(self.indexed_data[label])
+                    
+        self.triplets = self.generate_triplets()
         
     def __len__(self):
-        return len(self.labels)
+        return len(self.triplets)
     
     def __getitem__(self, index):
         """Returns a triplet (Xa, Xp, Xn), (ya, yp, yn) with random instances
@@ -31,24 +20,46 @@ class TripletDataset(Dataset):
         Returns:
             _type_: 2 tuples (Xa, Xp, Xn), (ya, yp, yn)
         """
+
+        return self.triplets[index]
        
-        # Select a label
-        label = np.random.choice(self.label_pool, size=1)[0]
+    def generate_triplets(self):
         
-        # Remove that label from pool - ensure the dataset is finite + each class gets all instances
-        label_ix = np.where(self.label_pool == label)[0][0]  
-        self.label_pool = np.delete(self.label_pool, label_ix) 
+        triplets = []
+        
+        self.label_pool = self.labels
+        
+        self.indexed_data = {}
+        for label in np.unique(self.labels):  
+            self.indexed_data[label] = []
 
-        # Get 2 random instances of that class
-        label_data = self.indexed_data[label]
-        anchor, positive = np.random.choice(label_data, size=2, replace=False)  # replace=False ensures anchor and positive will always be distinct 
-        
-        # Get an array of all classes that are not "label"
-        neg_label = np.random.choice(list(set(self.labels) - {label}))
-        negative = np.random.choice(self.indexed_data[neg_label], size=1)[0]
-        
-        return (anchor, positive, negative), (label, label, neg_label)
+        for d, label in zip(self.data, self.labels):
+            self.indexed_data[label].append(d)
 
+
+        # Convert lists to numpy arrays for efficient indexing later
+        for label in self.indexed_data:
+            self.indexed_data[label] = np.array(self.indexed_data[label])
+        
+        for _ in range(len(self.labels)):
+            # Select a label
+            label = np.random.choice(self.label_pool, size=1)[0]
+            
+            # Remove that label from pool - ensure the dataset is finite + each class gets all instances
+            label_ix = np.where(self.label_pool == label)[0][0]  
+            self.label_pool = np.delete(self.label_pool, label_ix) 
+
+            # Get 2 random instances of that class
+            label_data = self.indexed_data[label]
+            anchor, positive = np.random.choice(label_data, size=2, replace=False)  # replace=False ensures anchor and positive will always be distinct 
+            
+            # Get an array of all classes that are not "label"
+            neg_label = np.random.choice(list(set(self.labels) - {label}))
+            negative = np.random.choice(self.indexed_data[neg_label], size=1)[0]
+        
+            triplets.append(((anchor, positive, negative), (label, label, neg_label)))
+        
+        return triplets
     
     def get_data(self, index):
         return self.anchor_data[index], self.anchor_labels[index], self.positive_data[index], self.positive_labels[index], self.negative_data[index], self.negative_labels[index]
