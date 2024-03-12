@@ -23,6 +23,10 @@ class TripletDataset(Dataset):
 
         return self.triplets[index]
        
+    def reshuffle(self):
+        self.triplets = []
+        self.triplets = self.generate_triplets()
+       
     def generate_triplets(self):
         
         triplets = []
