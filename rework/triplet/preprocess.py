@@ -65,7 +65,10 @@ def train_test_split(input_data: dict, test_ssize=0.3):
     for person, imgs in input_data.items():
         n_imgs = len(imgs)
         train_size = int(n_imgs * (1 - test_ssize))
-
+        
+        # Shuffle images
+        np.random.shuffle(imgs)
+        
         X_train.extend(imgs[:train_size])
         X_test.extend(imgs[train_size:])
         y_train.extend([int(person)] * len(imgs[:train_size]))

@@ -12,7 +12,10 @@ v0.4/models/*
 *.npy
 *.log
 *.pt
-*.png
 *.jpg
+v0.5/data/UERC/**
+**/data/** 
 v0.**/*.txt
 **/embeddings
+**/data/**
+**\data\*.png
