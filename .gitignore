@@ -12,7 +12,5 @@ v0.4/models/*
 *.npy
 *.log
 *.pt
-*.png
-*.jpg
 v0.**/*.txt
 **/embeddings
