@@ -60,6 +60,8 @@ def resize_input(input_data: np.ndarray, tgt_size=64, mode="train"):
 def train_test_split(input_data: dict, test_ssize=0.3):
     X_train, X_test = [], []
     y_train, y_test = [], []
+    
+    # shuffle
 
     # X data split, y = person
     for person, imgs in input_data.items():
