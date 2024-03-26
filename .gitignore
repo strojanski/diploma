@@ -1,0 +1,22 @@
+v0/data/*
+v0.1/data/*
+v0.1/models/*
+v0.2/data/*
+v0.2/models/*
+v0.3 - baseline/data/*
+v0.3 - baseline/models/*
+v0.4/data/*
+v0.4/models/*
+*.pyc
+*.pth
+*.npy
+*.log
+*.jpg
+v0.5/data/UERC/**
+**/data/** 
+v0.**/*.txt
+**/embeddings
+**/data/**
+**\data\*.png
+UERC/*
+*.pt
