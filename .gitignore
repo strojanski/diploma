@@ -19,4 +19,4 @@ v0.**/*.txt
 **/data/**
 **\data\*.png
 UERC/*
-*.pt
+*.pt*
