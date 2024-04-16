@@ -26,6 +26,8 @@ def resize_input(input_data: np.ndarray, tgt_size=64, mode="train"):
         [
             transforms.Resize(tgt_size, interpolation=Image.BICUBIC),
             transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomPhotometricDistort(p=1),
+            transforms.ColorJitter(brightness=.1, contrast=.05, saturation=.05),
             transforms.ConvertImageDtype(torch.float32),
             transforms.Resize([tgt_size, tgt_size//2], interpolation=Image.BICUBIC),
             transforms.Pad([tgt_size//4, 0]),
