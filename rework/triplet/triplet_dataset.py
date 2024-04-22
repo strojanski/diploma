@@ -55,11 +55,14 @@ class TripletDataset(Dataset):
 
             # Get 2 random instances of that class
             label_data = self.indexed_data[label]
-            anchor, positive = np.random.choice(label_data, size=2, replace=False)  # replace=False ensures anchor and positive will always be distinct 
+            print(np.array(label_data).shape)
+            a, p = np.random.choice(len(label_data), size=2, replace=False)  # replace=False ensures anchor and positive will always be distinct 
+            anchor, positive = label_data[a], label_data[p]
             
             # Get an array of all classes that are not "label"
             neg_label = np.random.choice(list(set(self.labels) - {label}))
-            negative = np.random.choice(self.indexed_data[neg_label], size=1)[0]
+            
+            negative = self.indexed_data[neg_label][np.random.choice(len(self.indexed_data[neg_label]), size=1)[0]]
         
             triplets.append(((anchor, positive, negative), (label, label, neg_label)))
         
