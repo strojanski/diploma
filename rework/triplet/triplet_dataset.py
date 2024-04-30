@@ -28,7 +28,6 @@ class TripletDataset(Dataset):
         self.triplets = self.generate_triplets()
        
     def generate_triplets(self):
-        
         triplets = []
         
         self.label_pool = self.labels
@@ -40,8 +39,7 @@ class TripletDataset(Dataset):
         for d, label in zip(self.data, self.labels):
             self.indexed_data[label].append(d)
 
-
-        # Convert lists to numpy arrays for efficient indexing later
+        # Convert to numpy arrays
         for label in self.indexed_data:
             self.indexed_data[label] = np.array(self.indexed_data[label])
         
