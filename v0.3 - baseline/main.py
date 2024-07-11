@@ -20,11 +20,7 @@ parser = argparse.ArgumentParser(description="Person recognition on ear dataset.
 parser.add_argument(
     "--mode", type=str, default="train", help="Options: train, test, preprocess, other"
 )
-parser.add_argument(
-    "--bs", type=int, default=16, help="Batch size"
-)
-
-
+parser.add_argument("--bs", type=int, default=16, help="Batch size")
 
 
 def get_train_data(train_dataset, batch_size=16):
@@ -193,9 +189,7 @@ if __name__ == "__main__":
     device = (
         "cuda"
         if torch.cuda.is_available()
-        else "mps"
-        if torch.backends.mps.is_available()
-        else "cpu"
+        else "mps" if torch.backends.mps.is_available() else "cpu"
     )
     print(device)
 
@@ -355,4 +349,3 @@ if __name__ == "__main__":
             ax[1].set_title(f"Test: {test_labels[i]}")
 
             plt.show()
-       

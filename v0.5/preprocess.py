@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import torchvision
 from PIL import Image
+
 # from torchvision import transforms
 from torchvision.transforms import v2 as transforms
 
@@ -26,8 +27,8 @@ def resize_input(input_data: np.ndarray, tgt_size=64, mode="train") -> dict:
             transforms.Resize(tgt_size, interpolation=Image.BICUBIC),
             transforms.RandomHorizontalFlip(p=0.3),
             transforms.ConvertImageDtype(torch.float32),
-            transforms.Resize([tgt_size, tgt_size//2], interpolation=Image.BICUBIC),
-            transforms.Pad([tgt_size//4, 0]),
+            transforms.Resize([tgt_size, tgt_size // 2], interpolation=Image.BICUBIC),
+            transforms.Pad([tgt_size // 4, 0]),
         ]
     )
 
@@ -35,8 +36,10 @@ def resize_input(input_data: np.ndarray, tgt_size=64, mode="train") -> dict:
         preprocess = transforms.Compose(
             [
                 transforms.ConvertImageDtype(torch.float32),
-                transforms.Resize([tgt_size, tgt_size//2], interpolation=Image.BICUBIC),
-                transforms.Pad([tgt_size//4, 0]),
+                transforms.Resize(
+                    [tgt_size, tgt_size // 2], interpolation=Image.BICUBIC
+                ),
+                transforms.Pad([tgt_size // 4, 0]),
             ]
         )
 
@@ -79,7 +82,7 @@ def read_raw():
     n_imgs = 0
     for c, person in enumerate(ear_data):
         imgs = os.listdir("./data/UERC/%s" % person)
-        
+
         try:
             ear_imgs[person] = [
                 cv2.cvtColor(
@@ -88,11 +91,10 @@ def read_raw():
                 for img in imgs
             ]
             n_imgs += len(ear_imgs[person])
-            
+
             if c % 10 == 0:
                 print(c, n_imgs)
-                
-                
+
         except Exception as e:
             print(e)
     return ear_imgs

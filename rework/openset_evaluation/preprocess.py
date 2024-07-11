@@ -2,11 +2,13 @@ import copy
 import os
 
 import cv2
+
 # import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torchvision
 from PIL import Image
+
 # from torchvision import transforms
 from torchvision.transforms import v2 as transforms
 
@@ -26,8 +28,8 @@ def resize_input(input_data: np.ndarray, tgt_size=64, mode="train"):
             transforms.Resize(tgt_size, interpolation=Image.BICUBIC),
             transforms.RandomHorizontalFlip(p=0.3),
             transforms.ConvertImageDtype(torch.float32),
-            transforms.Resize([tgt_size, tgt_size//2], interpolation=Image.BICUBIC),
-            transforms.Pad([tgt_size//4, 0]),
+            transforms.Resize([tgt_size, tgt_size // 2], interpolation=Image.BICUBIC),
+            transforms.Pad([tgt_size // 4, 0]),
         ]
     )
 
@@ -35,8 +37,10 @@ def resize_input(input_data: np.ndarray, tgt_size=64, mode="train"):
         preprocess = transforms.Compose(
             [
                 transforms.ConvertImageDtype(torch.float32),
-                transforms.Resize([tgt_size, tgt_size//2], interpolation=Image.BICUBIC),
-                transforms.Pad([tgt_size//4, 0]),
+                transforms.Resize(
+                    [tgt_size, tgt_size // 2], interpolation=Image.BICUBIC
+                ),
+                transforms.Pad([tgt_size // 4, 0]),
             ]
         )
 
@@ -50,6 +54,7 @@ def resize_input(input_data: np.ndarray, tgt_size=64, mode="train"):
         input_data[i] = img
 
     return input_data
+
 
 if __name__ == "__main__":
     pass

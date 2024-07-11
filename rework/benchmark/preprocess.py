@@ -2,16 +2,17 @@ import copy
 import os
 
 import cv2
+
 # import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torchvision
 from PIL import Image
+
 # from torchvision import transforms
 from torchvision.transforms import v2 as transforms
 
 torchvision.disable_beta_transforms_warning()
-
 
 
 def resize_input(input_data: np.ndarray, tgt_size=64, mode="train"):
@@ -27,8 +28,8 @@ def resize_input(input_data: np.ndarray, tgt_size=64, mode="train"):
             transforms.Resize(tgt_size, interpolation=Image.BICUBIC),
             transforms.RandomHorizontalFlip(p=0.3),
             transforms.ConvertImageDtype(torch.float32),
-            transforms.Resize([tgt_size, tgt_size//2], interpolation=Image.BICUBIC),
-            transforms.Pad([tgt_size//4, 0]),
+            transforms.Resize([tgt_size, tgt_size // 2], interpolation=Image.BICUBIC),
+            transforms.Pad([tgt_size // 4, 0]),
         ]
     )
 
@@ -36,8 +37,10 @@ def resize_input(input_data: np.ndarray, tgt_size=64, mode="train"):
         preprocess = transforms.Compose(
             [
                 transforms.ConvertImageDtype(torch.float32),
-                transforms.Resize([tgt_size, tgt_size//2], interpolation=Image.BICUBIC),
-                transforms.Pad([tgt_size//4, 0]),
+                transforms.Resize(
+                    [tgt_size, tgt_size // 2], interpolation=Image.BICUBIC
+                ),
+                transforms.Pad([tgt_size // 4, 0]),
             ]
         )
 
@@ -66,7 +69,7 @@ def train_test_split(input_data: dict, test_ssize=0.3):
         n_imgs = len(imgs)
         train_size = int(n_imgs * (1 - test_ssize))
         test_size = int(n_imgs * test_ssize)
-        
+
         X_train.extend(imgs[:train_size])
         X_test.extend(imgs[train_size:])
         y_train.extend([int(person)] * len(imgs[:train_size]))
@@ -85,7 +88,7 @@ def read_raw(train_subjects, path="../UERC"):
     for person in ear_data:
         if person not in train_subjects:
             continue
-        
+
         imgs = os.listdir("./data/AWE/%s" % person)
         try:
             ear_imgs[person] = [
